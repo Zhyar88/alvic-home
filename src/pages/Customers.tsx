@@ -168,16 +168,24 @@ export function Customers() {
   };
 
   const uploadDocuments = async (customerId: string) => {
-    if (!pendingDocs.length) return;
+    if (!pendingDocs.length) return true;
     setUploadingDocs(true);
     const errors: string[] = [];
 
+    console.log('Starting upload for customer:', customerId);
+    console.log('Pending documents:', pendingDocs.length);
+
     for (const doc of pendingDocs) {
+      console.log('Processing document:', doc.file.name);
       const ext = doc.file.name.split('.').pop();
       const path = `${customerId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
+
+      console.log('Uploading to path:', path);
+      const { data: uploadData, error: uploadErr } = await supabase.storage
         .from('customer-documents')
         .upload(path, doc.file, { contentType: doc.file.type, upsert: false });
+
+      console.log('Upload result:', { uploadData, uploadErr });
 
       if (uploadErr) {
         console.error('Upload error:', uploadErr);
@@ -185,7 +193,8 @@ export function Customers() {
         continue;
       }
 
-      const { error: insertErr } = await supabase.from('customer_documents').insert({
+      console.log('Inserting document record...');
+      const { data: insertData, error: insertErr } = await supabase.from('customer_documents').insert({
         customer_id: customerId,
         document_type: doc.document_type,
         label_en: doc.label_en,
@@ -197,6 +206,8 @@ export function Customers() {
         created_by: profile?.id,
       });
 
+      console.log('Insert result:', { insertData, insertErr });
+
       if (insertErr) {
         console.error('Insert error:', insertErr);
         errors.push(`Failed to save ${doc.file.name}: ${insertErr.message}`);
@@ -207,10 +218,12 @@ export function Customers() {
     setUploadingDocs(false);
 
     if (errors.length > 0) {
+      console.error('Upload completed with errors:', errors);
       setError(errors.join('\n'));
       return false;
     }
 
+    console.log('Upload completed successfully');
     setPendingDocs([]);
     return true;
   };
