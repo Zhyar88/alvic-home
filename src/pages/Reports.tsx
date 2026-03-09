@@ -12,7 +12,7 @@ type ReportPeriod = 'daily' | 'monthly' | 'yearly';
 
 export function Reports() {
   const { t, language } = useLanguage();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
@@ -41,12 +41,16 @@ export function Reports() {
   }, []);
 
   const fetchCustomers = async () => {
-    const { data } = await supabase
-      .from('customers')
-      .select('id, full_name_en, full_name_ku')
-      .eq('is_active', true)
-      .order('full_name_en');
-    setCustomers((data || []) as Customer[]);
+    try {
+      const { data } = await supabase
+        .from('customers')
+        .select('id, full_name_en, full_name_ku')
+        .eq('is_active', true)
+        .order('full_name_en');
+      setCustomers((data || []) as Customer[]);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
   };
 
   const fetchReports = async () => {
@@ -147,7 +151,11 @@ export function Reports() {
         </div>
       </div>
 
-      {profile?.role === 'administrator' && (
+      {authLoading ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+          <p className="text-gray-500">{language === 'ku' ? 'چاوەڕوان بە...' : 'Loading...'}</p>
+        </div>
+      ) : profile?.role === 'administrator' ? (
         <>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
             <div className="flex items-center gap-2 mb-4">
@@ -367,9 +375,7 @@ export function Reports() {
             </div>
           )}
         </>
-      )}
-
-      {profile?.role !== 'administrator' && (
+      ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
           <p className="text-amber-800">
             {language === 'ku' ? 'تەنها ئەدمین دەتوانێت ڕاپۆرتی قازانج ببینێت' : 'Only administrators can view profit reports'}
