@@ -113,6 +113,8 @@ export interface Order {
   created_by_profile?: UserProfile;
   assigned_to_profile?: UserProfile;
   items?: OrderItem[];
+  total_cost_usd: number;
+  total_profit_usd: number;
   created_at: string;
   updated_at: string;
 }
@@ -182,6 +184,11 @@ export interface OrderItem {
   quantity: number;
   unit_price_usd: number;
   total_price_usd: number;
+  cost_price_usd: number;
+  profit_per_unit_usd: number;
+  total_profit_usd: number;
+  profit_updated_by?: string;
+  profit_updated_at?: string;
   config: KitchenBedroomConfig | ConsoleConfig | Record<string, string>;
   notes_en: string;
   notes_ku: string;
@@ -358,4 +365,19 @@ export interface OrderStatusHistory {
   reason_en: string;
   reason_ku: string;
   created_at: string;
+}
+
+export interface ProfitReport {
+  report_date?: string;
+  report_month?: string;
+  report_year?: string;
+  customer_id?: string;
+  customer_name_en?: string;
+  customer_name_ku?: string;
+  total_orders: number;
+  total_revenue: number;
+  total_cost: number;
+  gross_profit: number;
+  total_expenses: number;
+  net_profit: number;
 }

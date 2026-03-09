@@ -1,407 +1,379 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Calendar, DollarSign, AlertCircle, Users, Lock, Clock, Package } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, DollarSign, Filter, Download, Users, Wallet } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Input } from '../components/ui/Input';
+import { useAuth } from '../contexts/AuthContext';
+import { Input, Select } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import type { ProfitReport, Customer } from '../types';
 
-type ReportType = 'daily' | 'monthly' | 'outstanding' | 'profit' | 'expenses' | 'cash_vs_installment' | 'sales_employee' | 'lock_summary' | 'aging';
-
-const reportCardDefs = [
-  { id: 'daily' as ReportType, icon: <Calendar size={20} />, titleKey: 'dailyRevenue', descKey: 'dailyRevenueDesc', color: 'bg-blue-50 text-blue-600' },
-  { id: 'monthly' as ReportType, icon: <TrendingUp size={20} />, titleKey: 'monthlyRevenue', descKey: 'monthlyRevenueDesc', color: 'bg-emerald-50 text-emerald-600' },
-  { id: 'outstanding' as ReportType, icon: <AlertCircle size={20} />, titleKey: 'outstandingInstallments', descKey: 'outstandingInstallmentsDesc', color: 'bg-red-50 text-red-600' },
-  { id: 'profit' as ReportType, icon: <DollarSign size={20} />, titleKey: 'profitPerProject', descKey: 'profitPerProjectDesc', color: 'bg-amber-50 text-amber-600' },
-  { id: 'expenses' as ReportType, icon: <Package size={20} />, titleKey: 'expenseBreakdown', descKey: 'expenseBreakdownDesc', color: 'bg-orange-50 text-orange-600' },
-  { id: 'cash_vs_installment' as ReportType, icon: <BarChart3 size={20} />, titleKey: 'cashVsInstallment', descKey: 'cashVsInstallmentDesc', color: 'bg-teal-50 text-teal-600' },
-  { id: 'sales_employee' as ReportType, icon: <Users size={20} />, titleKey: 'salesPerEmployee', descKey: 'salesPerEmployeeDesc', color: 'bg-stone-50 text-stone-600' },
-  { id: 'lock_summary' as ReportType, icon: <Lock size={20} />, titleKey: 'lockSummary', descKey: 'lockSummaryDesc', color: 'bg-stone-50 text-stone-600' },
-  { id: 'aging' as ReportType, icon: <Clock size={20} />, titleKey: 'installmentAging', descKey: 'installmentAgingDesc', color: 'bg-rose-50 text-rose-600' },
-];
+type ReportPeriod = 'daily' | 'monthly' | 'yearly';
 
 export function Reports() {
   const { t, language } = useLanguage();
-  const [activeReport, setActiveReport] = useState<ReportType | null>(null);
+  const { profile } = useAuth();
+  const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
-    d.setDate(1);
+    d.setMonth(d.getMonth() - 3);
     return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-  const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
+  const [customerFilter, setCustomerFilter] = useState('all');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [reports, setReports] = useState<ProfitReport[]>([]);
   const [loading, setLoading] = useState(false);
-  const [profitData, setProfitData] = useState<Record<string, { actual_cost: number; margin: number }>>({});
+  const [summary, setSummary] = useState({
+    total_revenue: 0,
+    total_cost: 0,
+    gross_profit: 0,
+    total_expenses: 0,
+    net_profit: 0,
+    total_orders: 0,
+  });
 
   const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const pct = (n: number) => `${Number(n || 0).toFixed(1)}%`;
 
-  const runReport = async (type: ReportType) => {
-    setActiveReport(type);
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    const { data } = await supabase
+      .from('customers')
+      .select('id, full_name_en, full_name_ku')
+      .eq('is_active', true)
+      .order('full_name_en');
+    setCustomers((data || []) as Customer[]);
+  };
+
+  const fetchReports = async () => {
     setLoading(true);
-    setReportData([]);
-
     try {
-      switch (type) {
-        case 'daily': {
-          const { data } = await supabase.from('payments').select('payment_date, amount_usd, payment_type, order:orders(order_number, customer:customers(full_name_en,full_name_ku))')
-            .eq('is_reversed', false).gte('payment_date', dateFrom).lte('payment_date', dateTo).order('payment_date', { ascending: false });
-          setReportData((data || []) as Record<string, unknown>[]);
-          break;
-        }
-        case 'monthly': {
-          const { data } = await supabase.from('payments').select('payment_date, amount_usd')
-            .eq('is_reversed', false).gte('payment_date', dateFrom).lte('payment_date', dateTo);
-          const byMonth: Record<string, number> = {};
-          (data || []).forEach(p => {
-            const month = p.payment_date.substring(0, 7);
-            byMonth[month] = (byMonth[month] || 0) + p.amount_usd;
-          });
-          setReportData(Object.entries(byMonth).map(([month, total]) => ({ month, total })).sort((a, b) => (b.month as string).localeCompare(a.month as string)));
-          break;
-        }
-        case 'outstanding': {
-          const { data } = await supabase.from('installment_entries')
-            .select('*, order:orders(order_number, customer:customers(full_name_en,full_name_ku))')
-            .in('status', ['unpaid', 'partial', 'overdue']).order('due_date');
-          setReportData((data || []) as Record<string, unknown>[]);
-          break;
-        }
-        case 'profit': {
-          const { data } = await supabase.from('orders')
-            .select('id, order_number, customer:customers(full_name_en,full_name_ku), final_total_usd, total_paid_usd, status')
-            .gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59').order('created_at', { ascending: false });
-          setReportData((data || []) as Record<string, unknown>[]);
-          break;
-        }
-        case 'expenses': {
-          const { data } = await supabase.from('expenses')
-            .select('*, category:expense_categories(name_en,name_ku)')
-            .gte('expense_date', dateFrom).lte('expense_date', dateTo).order('expense_date', { ascending: false });
-          const byCat: Record<string, { name_en: string; name_ku: string; total: number; count: number }> = {};
-          (data || []).forEach(e => {
-            const key = (e.category as Record<string, string>)?.name_en || 'Other';
-            if (!byCat[key]) byCat[key] = { name_en: key, name_ku: (e.category as Record<string, string>)?.name_ku || key, total: 0, count: 0 };
-            byCat[key].total += e.amount_usd;
-            byCat[key].count++;
-          });
-          setReportData(Object.values(byCat).sort((a, b) => b.total - a.total));
-          break;
-        }
-        case 'cash_vs_installment': {
-          const { data } = await supabase.from('payments')
-            .select('amount_usd, order:orders(sale_type)')
-            .eq('is_reversed', false).gte('payment_date', dateFrom).lte('payment_date', dateTo);
-          let cashTotal = 0, installTotal = 0, cashCount = 0, installCount = 0;
-          (data || []).forEach(p => {
-            if ((p.order as Record<string, string>)?.sale_type === 'cash') { cashTotal += p.amount_usd; cashCount++; }
-            else { installTotal += p.amount_usd; installCount++; }
-          });
-          setReportData([
-            { type: 'Cash', total: cashTotal, count: cashCount },
-            { type: 'Installment', total: installTotal, count: installCount },
-          ]);
-          break;
-        }
-        case 'sales_employee': {
-          const { data } = await supabase.from('orders')
-            .select('id, final_total_usd, assigned_to, assigned_to_profile:user_profiles!orders_assigned_to_fkey(full_name_en,full_name_ku)')
-            .gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59');
-          const byEmp: Record<string, { name_en: string; name_ku: string; total: number; count: number }> = {};
-          (data || []).forEach(o => {
-            const key = o.assigned_to || 'unassigned';
-            const name = (o.assigned_to_profile as Record<string, string>)?.full_name_en || 'Unassigned';
-            if (!byEmp[key]) byEmp[key] = { name_en: name, name_ku: (o.assigned_to_profile as Record<string, string>)?.full_name_ku || name, total: 0, count: 0 };
-            byEmp[key].total += o.final_total_usd || 0;
-            byEmp[key].count++;
-          });
-          setReportData(Object.values(byEmp).sort((a, b) => b.total - a.total));
-          break;
-        }
-        case 'lock_summary': {
-          const { data } = await supabase.from('lock_sessions')
-            .select('*').gte('session_date', dateFrom).lte('session_date', dateTo).order('session_date', { ascending: false });
-          setReportData((data || []) as Record<string, unknown>[]);
-          break;
-        }
-        case 'aging': {
-          const today = new Date().toISOString().split('T')[0];
-          const { data } = await supabase.from('installment_entries')
-            .select('*, order:orders(order_number, customer:customers(full_name_en,full_name_ku))')
-            .eq('status', 'overdue').order('due_date');
-          setReportData(((data || []) as Record<string, unknown>[]).map(e => ({
-            ...e,
-            days_overdue: Math.floor((new Date(today).getTime() - new Date(e.due_date as string).getTime()) / 86400000),
-          })));
-          break;
-        }
+      const viewName = period === 'daily' ? 'daily_profit_report' : period === 'monthly' ? 'monthly_profit_report' : 'yearly_profit_report';
+
+      let query = supabase.from(viewName).select('*');
+
+      if (period === 'daily') {
+        query = query.gte('report_date', dateFrom).lte('report_date', dateTo);
+      } else if (period === 'monthly') {
+        query = query.gte('report_month', dateFrom).lte('report_month', dateTo);
+      } else {
+        query = query.gte('report_year', dateFrom).lte('report_year', dateTo);
       }
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
-  };
 
-  const updateProfitData = (orderId: string, field: 'actual_cost' | 'margin', value: number) => {
-    setProfitData(prev => ({
-      ...prev,
-      [orderId]: { ...prev[orderId], actual_cost: 0, margin: 0, [field]: value },
-    }));
-  };
+      if (customerFilter !== 'all') {
+        query = query.eq('customer_id', customerFilter);
+      }
 
-  const renderReport = () => {
-    if (loading) return <div className="flex items-center justify-center py-12 text-gray-400 gap-2"><div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />Loading report...</div>;
+      const { data } = await query.order(
+        period === 'daily' ? 'report_date' : period === 'monthly' ? 'report_month' : 'report_year',
+        { ascending: false }
+      );
 
-    switch (activeReport) {
-      case 'daily':
-        return (
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <p className="text-sm text-gray-500">{reportData.length} transactions · Total: <strong className="text-emerald-700">{fmt(reportData.reduce((s, r) => s + (r.amount_usd as number), 0))}</strong></p>
-            </div>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50"><th className="px-4 py-2 text-left text-xs text-gray-500">Date</th><th className="px-4 py-2 text-left text-xs text-gray-500">Order</th><th className="px-4 py-2 text-left text-xs text-gray-500">Customer</th><th className="px-4 py-2 text-left text-xs text-gray-500">Type</th><th className="px-4 py-2 text-left text-xs text-gray-500">Amount</th></tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">{r.payment_date as string}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-emerald-700">{(r.order as Record<string, string>)?.order_number}</td>
-                    <td className="px-4 py-2">{language === 'ku' ? ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_ku : ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_en}</td>
-                    <td className="px-4 py-2"><Badge variant="info">{r.payment_type as string}</Badge></td>
-                    <td className="px-4 py-2 font-bold text-emerald-700">{fmt(r.amount_usd as number)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
+      const reportData = (data || []) as ProfitReport[];
+      setReports(reportData);
 
-      case 'monthly':
-        return (
-          <div>
-            <div className="mb-3 font-semibold text-gray-700">Monthly Revenue Summary</div>
-            <div className="space-y-3">
-              {reportData.map((r, i) => (
-                <div key={i} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-                  <span className="font-medium w-20">{r.month as string}</span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${Math.min(100, ((r.total as number) / (reportData[0]?.total as number || 1)) * 100)}%` }} />
-                  </div>
-                  <span className="font-bold text-emerald-700 w-28 text-right">{fmt(r.total as number)}</span>
-                </div>
-              ))}
-              <div className="flex justify-end pt-3 border-t border-gray-200">
-                <span className="font-bold text-lg text-emerald-800">Total: {fmt(reportData.reduce((s, r) => s + (r.total as number), 0))}</span>
-              </div>
-            </div>
-          </div>
-        );
+      const totals = reportData.reduce((acc, r) => ({
+        total_revenue: acc.total_revenue + Number(r.total_revenue || 0),
+        total_cost: acc.total_cost + Number(r.total_cost || 0),
+        gross_profit: acc.gross_profit + Number(r.gross_profit || 0),
+        total_expenses: acc.total_expenses + Number(r.total_expenses || 0),
+        net_profit: acc.net_profit + Number(r.net_profit || 0),
+        total_orders: acc.total_orders + Number(r.total_orders || 0),
+      }), {
+        total_revenue: 0,
+        total_cost: 0,
+        gross_profit: 0,
+        total_expenses: 0,
+        net_profit: 0,
+        total_orders: 0,
+      });
 
-      case 'outstanding':
-        return (
-          <div>
-            <div className="flex justify-between mb-3">
-              <p className="text-sm text-gray-500">{reportData.length} unpaid installments</p>
-              <p className="font-bold text-red-700">Total: {fmt(reportData.reduce((s, r) => s + ((r.amount_usd as number) - (r.paid_amount_usd as number)), 0))}</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50">{['#', 'Order', 'Customer', 'Due Date', 'Amount', 'Paid', 'Remaining', 'Status'].map(h => <th key={h} className="px-3 py-2 text-left text-xs text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => (
-                  <tr key={i} className={`hover:bg-gray-50 ${r.status === 'overdue' ? 'bg-red-50/30' : ''}`}>
-                    <td className="px-3 py-2 font-bold">#{r.installment_number as number}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-emerald-700">{(r.order as Record<string, string>)?.order_number}</td>
-                    <td className="px-3 py-2">{language === 'ku' ? ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_ku : ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_en}</td>
-                    <td className="px-3 py-2">{r.due_date as string}</td>
-                    <td className="px-3 py-2 font-semibold">{fmt(r.amount_usd as number)}</td>
-                    <td className="px-3 py-2">{fmt(r.paid_amount_usd as number)}</td>
-                    <td className="px-3 py-2 font-bold text-red-700">{fmt((r.amount_usd as number) - (r.paid_amount_usd as number))}</td>
-                    <td className="px-3 py-2"><Badge variant={r.status === 'overdue' ? 'error' : 'warning'}>{r.status as string}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      case 'profit':
-        return (
-          <div>
-            <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-xl mb-4 border border-amber-200">Enter actual cost and profit margin manually for each contract below. All values are editable.</p>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50">{['Order', 'Customer', 'Contract Value', 'Paid', 'Actual Cost', 'Profit Margin %', 'Profit'].map(h => <th key={h} className="px-3 py-2 text-left text-xs text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => {
-                  const pd = profitData[r.id as string] || { actual_cost: 0, margin: 0 };
-                  const profit = (r.final_total_usd as number) - pd.actual_cost;
-                  return (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-xs text-emerald-700">{r.order_number as string}</td>
-                      <td className="px-3 py-2">{language === 'ku' ? ((r.customer as Record<string, string>))?.full_name_ku : (r.customer as Record<string, string>)?.full_name_en}</td>
-                      <td className="px-3 py-2 font-bold">{fmt(r.final_total_usd as number)}</td>
-                      <td className="px-3 py-2 text-emerald-700">{fmt(r.total_paid_usd as number)}</td>
-                      <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={pd.actual_cost || ''} onChange={e => updateProfitData(r.id as string, 'actual_cost', Number(e.target.value))} placeholder="0.00" className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-emerald-500" /></td>
-                      <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.1} value={pd.margin || ''} onChange={e => updateProfitData(r.id as string, 'margin', Number(e.target.value))} placeholder="%" className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-emerald-500" /></td>
-                      <td className="px-3 py-2 font-bold text-emerald-800">{pd.actual_cost ? fmt(profit) : '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      case 'expenses':
-        return (
-          <div>
-            <div className="flex justify-end mb-3">
-              <span className="font-bold text-red-700">Total: {fmt(reportData.reduce((s, r) => s + (r.total as number), 0))}</span>
-            </div>
-            <div className="space-y-3">
-              {reportData.map((r, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div>
-                    <p className="font-medium">{language === 'ku' ? r.name_ku as string : r.name_en as string}</p>
-                    <p className="text-xs text-gray-500">{r.count as number} expenses</p>
-                  </div>
-                  <p className="font-bold text-red-700">{fmt(r.total as number)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'cash_vs_installment':
-        return (
-          <div className="space-y-4">
-            {reportData.map((r, i) => (
-              <div key={i} className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xl font-bold text-gray-900">{r.type as string}</p>
-                  <Badge variant={r.type === 'Cash' ? 'info' : 'warning'}>{r.count as number} payments</Badge>
-                </div>
-                <p className="text-3xl font-bold text-emerald-700">{fmt(r.total as number)}</p>
-                <div className="mt-3 bg-gray-100 rounded-full h-3">
-                  <div className={`h-3 rounded-full ${r.type === 'Cash' ? 'bg-blue-500' : 'bg-amber-500'}`}
-                    style={{ width: `${reportData.length ? ((r.total as number) / reportData.reduce((s, d) => s + (d.total as number), 0)) * 100 : 0}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-
-      case 'sales_employee':
-        return (
-          <div>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50">{['Employee', 'Orders', 'Total Value'].map(h => <th key={h} className="px-4 py-2 text-left text-xs text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{language === 'ku' ? r.name_ku as string : r.name_en as string}</td>
-                    <td className="px-4 py-3"><Badge variant="info">{r.count as number}</Badge></td>
-                    <td className="px-4 py-3 font-bold text-emerald-700">{fmt(r.total as number)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      case 'lock_summary':
-        return (
-          <div>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50">{['Date', 'Status', 'Opening', 'Income', 'Expenses', 'Closing', 'Net'].map(h => <th key={h} className="px-3 py-2 text-left text-xs text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((s, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium">{s.session_date as string}</td>
-                    <td className="px-3 py-2"><Badge variant={s.status === 'open' ? 'success' : 'neutral'}>{s.status as string}</Badge></td>
-                    <td className="px-3 py-2">{fmt(s.opening_balance_usd as number)}</td>
-                    <td className="px-3 py-2 text-emerald-700">{fmt(s.total_income_usd as number)}</td>
-                    <td className="px-3 py-2 text-red-600">{fmt(s.total_expenses_usd as number)}</td>
-                    <td className="px-3 py-2 font-bold">{fmt(s.closing_balance_usd as number)}</td>
-                    <td className="px-3 py-2 font-bold text-emerald-700">{fmt(s.net_usd as number)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      case 'aging':
-        return (
-          <div>
-            <div className="flex justify-between mb-3">
-              <p className="text-sm font-semibold text-red-700">{reportData.length} overdue installments</p>
-              <p className="font-bold text-red-700">Total Overdue: {fmt(reportData.reduce((s, r) => s + ((r.amount_usd as number) - (r.paid_amount_usd as number)), 0))}</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead><tr className="bg-red-50">{['Order', 'Customer', '#', 'Due Date', 'Days Overdue', 'Amount Due'].map(h => <th key={h} className="px-3 py-2 text-left text-xs text-red-600">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => (
-                  <tr key={i} className="hover:bg-red-50/30">
-                    <td className="px-3 py-2 font-mono text-xs text-emerald-700">{(r.order as Record<string, string>)?.order_number}</td>
-                    <td className="px-3 py-2">{language === 'ku' ? ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_ku : ((r.order as Record<string, unknown>)?.customer as Record<string, string>)?.full_name_en}</td>
-                    <td className="px-3 py-2 font-bold">#{r.installment_number as number}</td>
-                    <td className="px-3 py-2 text-red-600">{r.due_date as string}</td>
-                    <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${(r.days_overdue as number) > 30 ? 'bg-red-200 text-red-800' : 'bg-orange-100 text-orange-700'}`}>
-                        {r.days_overdue as number} days
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-bold text-red-700">{fmt((r.amount_usd as number) - (r.paid_amount_usd as number))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-      default:
-        return null;
+      setSummary(totals);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (period === 'yearly') return d.getFullYear().toString();
+    if (period === 'monthly') return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'long' });
+    return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Date', 'Customer', 'Orders', 'Revenue', 'Cost', 'Gross Profit', 'Expenses', 'Net Profit'];
+    const rows = reports.map(r => [
+      formatDate(r.report_date || r.report_month || r.report_year),
+      language === 'ku' ? r.customer_name_ku || 'All' : r.customer_name_en || 'All',
+      r.total_orders,
+      r.total_revenue,
+      r.total_cost,
+      r.gross_profit,
+      r.total_expenses,
+      r.net_profit,
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `profit_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const profitMargin = summary.total_revenue > 0 ? (summary.gross_profit / summary.total_revenue) * 100 : 0;
+  const netMargin = summary.total_revenue > 0 ? (summary.net_profit / summary.total_revenue) * 100 : 0;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
-      {!activeReport ? (
-        <>
-          <p className="text-sm text-gray-500">{t('selectReport')}</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reportCardDefs.map(card => (
-              <button
-                key={card.id}
-                onClick={() => { setActiveReport(card.id); runReport(card.id); }}
-                className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group"
-              >
-                <div className={`w-10 h-10 ${card.color} rounded-xl flex items-center justify-center mb-3`}>{card.icon}</div>
-                <p className="font-semibold text-gray-900 mb-1">{t(card.titleKey as Parameters<typeof t>[0])}</p>
-                <p className="text-xs text-gray-500">{t(card.descKey as Parameters<typeof t>[0])}</p>
-              </button>
-            ))}
-          </div>
-        </>
-      ) : (
+    <div className="p-4 lg:p-6 space-y-5">
+      <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-5">
-            <Button variant="ghost" onClick={() => setActiveReport(null)} size="sm">← Back</Button>
-            <h2 className="font-bold text-gray-900">{t(reportCardDefs.find(r => r.id === activeReport)?.titleKey as Parameters<typeof t>[0] || 'reports')}</h2>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {language === 'ku' ? 'ڕاپۆرتی قازانج' : 'Profit Reports'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {language === 'ku' ? 'شیکاری داهات، خەرجی و قازانج' : 'Revenue, expenses, and profit analysis'}
+          </p>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-3 mb-5 p-4 bg-gray-50 rounded-2xl">
-            <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-auto" />
-            <Input label="To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-auto" />
-            <div className="flex items-end">
-              <Button onClick={() => runReport(activeReport)} loading={loading}>{t('generate')}</Button>
+      {profile?.role === 'administrator' && (
+        <>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Filter size={18} className="text-gray-600" />
+              <h3 className="font-semibold text-gray-900">
+                {language === 'ku' ? 'فلتەرکردن' : 'Filters'}
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <Select
+                label={language === 'ku' ? 'ماوە' : 'Period'}
+                value={period}
+                onChange={e => setPeriod(e.target.value as ReportPeriod)}
+              >
+                <option value="daily">{language === 'ku' ? 'ڕۆژانە' : 'Daily'}</option>
+                <option value="monthly">{language === 'ku' ? 'مانگانە' : 'Monthly'}</option>
+                <option value="yearly">{language === 'ku' ? 'ساڵانە' : 'Yearly'}</option>
+              </Select>
+
+              <Input
+                label={language === 'ku' ? 'لە بەروار' : 'From Date'}
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+              />
+
+              <Input
+                label={language === 'ku' ? 'بۆ بەروار' : 'To Date'}
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+              />
+
+              <Select
+                label={language === 'ku' ? 'کڕیار' : 'Customer'}
+                value={customerFilter}
+                onChange={e => setCustomerFilter(e.target.value)}
+              >
+                <option value="all">{language === 'ku' ? 'هەموو کڕیاران' : 'All Customers'}</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {language === 'ku' ? c.full_name_ku : c.full_name_en}
+                  </option>
+                ))}
+              </Select>
+
+              <div className="flex items-end gap-2">
+                <Button onClick={fetchReports} disabled={loading} className="flex-1">
+                  <BarChart3 size={16} />
+                  {loading ? (language === 'ku' ? 'چاوەڕوان بە...' : 'Loading...') : (language === 'ku' ? 'پیشاندان' : 'Generate')}
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 overflow-x-auto">
-            {reportData.length === 0 && !loading ? (
-              <p className="text-center py-8 text-gray-400">{t('noData')}</p>
-            ) : renderReport()}
-          </div>
+          {reports.length > 0 && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign size={18} className="text-blue-600" />
+                    <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'داهات' : 'Revenue'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-900">{fmt(summary.total_revenue)}</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wallet size={18} className="text-red-600" />
+                    <p className="text-xs font-medium text-red-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'تێچوو' : 'Cost'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-900">{fmt(summary.total_cost)}</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp size={18} className="text-emerald-600" />
+                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
+                  <p className="text-xs text-emerald-600 mt-1">{pct(profitMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wallet size={18} className="text-orange-600" />
+                    <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'خەرجییەکان' : 'Expenses'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-900">{fmt(summary.total_expenses)}</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign size={18} className="text-amber-600" />
+                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-amber-900">{fmt(summary.net_profit)}</p>
+                  <p className="text-xs text-amber-600 mt-1">{pct(netMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users size={18} className="text-gray-600" />
+                    <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                      {language === 'ku' ? 'داواکاریەکان' : 'Orders'}
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{summary.total_orders}</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">
+                    {language === 'ku' ? 'وردەکارییەکان' : 'Detailed Report'}
+                  </h3>
+                  <Button onClick={exportToCSV} variant="outline" size="sm">
+                    <Download size={14} />
+                    {language === 'ku' ? 'هاوردەکردن CSV' : 'Export CSV'}
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'بەروار' : 'Date'}
+                        </th>
+                        {customerFilter === 'all' && (
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                            {language === 'ku' ? 'کڕیار' : 'Customer'}
+                          </th>
+                        )}
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'داواکاری' : 'Orders'}
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'داهات' : 'Revenue'}
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'تێچوو' : 'Cost'}
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'خەرجی' : 'Expenses'}
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {reports.map((report, idx) => {
+                        const gpm = Number(report.total_revenue) > 0 ? (Number(report.gross_profit) / Number(report.total_revenue)) * 100 : 0;
+                        const npm = Number(report.total_revenue) > 0 ? (Number(report.net_profit) / Number(report.total_revenue)) * 100 : 0;
+
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                              {formatDate(report.report_date || report.report_month || report.report_year)}
+                            </td>
+                            {customerFilter === 'all' && (
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {language === 'ku' ? report.customer_name_ku || '—' : report.customer_name_en || '—'}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-sm text-center">
+                              <Badge variant="neutral">{report.total_orders}</Badge>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
+                              {fmt(Number(report.total_revenue))}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold text-red-700">
+                              {fmt(Number(report.total_cost))}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="text-sm font-semibold text-emerald-700">{fmt(Number(report.gross_profit))}</div>
+                              <div className="text-xs text-emerald-600">{pct(gpm)}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right font-semibold text-orange-700">
+                              {fmt(Number(report.total_expenses))}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="text-sm font-semibold text-amber-700">{fmt(Number(report.net_profit))}</div>
+                              <div className="text-xs text-amber-600">{pct(npm)}</div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {!loading && reports.length === 0 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+              <BarChart3 size={48} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500">
+                {language === 'ku' ? 'تکایە فلتەرەکان هەڵبژێرە و دووگمەی پیشاندان دابگرە' : 'Select filters and click Generate to view reports'}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {profile?.role !== 'administrator' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+          <p className="text-amber-800">
+            {language === 'ku' ? 'تەنها ئەدمین دەتوانێت ڕاپۆرتی قازانج ببینێت' : 'Only administrators can view profit reports'}
+          </p>
         </div>
       )}
     </div>
