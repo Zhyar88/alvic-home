@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, Receipt, Users, CreditCard, Calendar } from 'lucide-react';
+import { BarChart3, Receipt, Users, CreditCard, Calendar, DollarSign } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ProfitReport } from '../components/reports/ProfitReport';
@@ -7,8 +7,9 @@ import { SalesReport } from '../components/reports/SalesReport';
 import { CustomerReport } from '../components/reports/CustomerReport';
 import { PaymentReport } from '../components/reports/PaymentReport';
 import { InstallmentReport } from '../components/reports/InstallmentReport';
+import { ExpensesReport } from '../components/reports/ExpensesReport';
 
-type ReportType = 'profit' | 'sales' | 'customers' | 'payments' | 'installments';
+type ReportType = 'profit' | 'sales' | 'customers' | 'payments' | 'installments' | 'expenses';
 
 export function Reports() {
   const { language } = useLanguage();
@@ -21,6 +22,7 @@ export function Reports() {
     { id: 'customers' as ReportType, icon: Users, labelEn: 'Customer Analysis', labelKu: 'شیکاری کڕیاران' },
     { id: 'payments' as ReportType, icon: CreditCard, labelEn: 'Payment Collections', labelKu: 'کۆکردنەوەی پارە' },
     { id: 'installments' as ReportType, icon: Calendar, labelEn: 'Installment Status', labelKu: 'دۆخی بەشەکان' },
+    { id: 'expenses' as ReportType, icon: DollarSign, labelEn: 'Expenses Report', labelKu: 'ڕاپۆرتی خەرجی' },
   ];
 
   return (
@@ -71,6 +73,7 @@ export function Reports() {
             {activeTab === 'customers' && <CustomerReport />}
             {activeTab === 'payments' && <PaymentReport />}
             {activeTab === 'installments' && <InstallmentReport />}
+            {activeTab === 'expenses' && <ExpensesReport />}
           </div>
         </>
       ) : (
