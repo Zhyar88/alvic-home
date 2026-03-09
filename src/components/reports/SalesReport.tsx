@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Receipt, Filter, Download, Users, DollarSign, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Receipt, Filter, Download, Users, DollarSign, TrendingUp, Search, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Input } from '../ui/Input';
+import { Input, Select } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 
@@ -19,14 +19,20 @@ interface SalesData {
   balance_due_usd: number;
 }
 
+type DatePreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
+type SortField = 'created_at' | 'final_total_usd' | 'total_paid_usd' | 'balance_due_usd';
+type SortOrder = 'asc' | 'desc';
+
 export function SalesReport() {
   const { language } = useLanguage();
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [datePreset, setDatePreset] = useState<DatePreset>('this_month');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [sales, setSales] = useState<SalesData[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({
@@ -40,10 +46,74 @@ export function SalesReport() {
 
   const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  useEffect(() => {
+    applyDatePreset(datePreset);
+  }, []);
+
+  const applyDatePreset = (preset: DatePreset) => {
+    const now = new Date();
+    let from = new Date();
+    let to = new Date();
+
+    switch (preset) {
+      case 'today':
+        from = new Date(now.setHours(0, 0, 0, 0));
+        to = new Date();
+        break;
+      case 'yesterday':
+        from = new Date(now.setDate(now.getDate() - 1));
+        from.setHours(0, 0, 0, 0);
+        to = new Date(from);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'this_week':
+        from = new Date(now.setDate(now.getDate() - now.getDay()));
+        from.setHours(0, 0, 0, 0);
+        to = new Date();
+        break;
+      case 'last_week':
+        from = new Date(now.setDate(now.getDate() - now.getDay() - 7));
+        from.setHours(0, 0, 0, 0);
+        to = new Date(from);
+        to.setDate(to.getDate() + 6);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'this_month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = new Date();
+        break;
+      case 'last_month':
+        from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        to = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case 'this_quarter':
+        const quarter = Math.floor(now.getMonth() / 3);
+        from = new Date(now.getFullYear(), quarter * 3, 1);
+        to = new Date();
+        break;
+      case 'this_year':
+        from = new Date(now.getFullYear(), 0, 1);
+        to = new Date();
+        break;
+      case 'custom':
+        return;
+    }
+
+    setDateFrom(from.toISOString().split('T')[0]);
+    setDateTo(to.toISOString().split('T')[0]);
+  };
+
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset);
+    if (preset !== 'custom') {
+      applyDatePreset(preset);
+    }
+  };
+
   const fetchSales = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('orders')
         .select(`
           id,
@@ -59,12 +129,26 @@ export function SalesReport() {
             full_name_ku
           )
         `)
-        .gte('created_at', dateFrom)
-        .lte('created_at', dateTo + 'T23:59:59')
-        .neq('status', 'draft')
-        .order('created_at', { ascending: false });
+        .neq('status', 'draft');
 
-      const salesData = (data || []).map(order => ({
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+      if (saleTypeFilter !== 'all') {
+        query = query.eq('sale_type', saleTypeFilter);
+      }
+
+      query = query.order(sortField, { ascending: sortOrder === 'asc' });
+
+      const { data } = await query;
+
+      let salesData = (data || []).map(order => ({
         id: order.id,
         order_number: order.order_number,
         created_at: order.created_at,
@@ -76,6 +160,15 @@ export function SalesReport() {
         total_paid_usd: order.total_paid_usd,
         balance_due_usd: order.balance_due_usd,
       }));
+
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        salesData = salesData.filter(s =>
+          s.order_number.toLowerCase().includes(query) ||
+          s.customer_name_en.toLowerCase().includes(query) ||
+          s.customer_name_ku.toLowerCase().includes(query)
+        );
+      }
 
       setSales(salesData);
 
@@ -126,6 +219,15 @@ export function SalesReport() {
     URL.revokeObjectURL(url);
   };
 
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
   const collectionRate = summary.total_sales > 0 ? (summary.total_collected / summary.total_sales) * 100 : 0;
 
   return (
@@ -134,24 +236,80 @@ export function SalesReport() {
         <div className="flex items-center gap-2 mb-4">
           <Filter size={18} className="text-gray-600" />
           <h3 className="font-semibold text-gray-900">
-            {language === 'ku' ? 'فلتەرکردن' : 'Filters'}
+            {language === 'ku' ? 'فلتەرکردنی پێشکەوتوو' : 'Advanced Filters'}
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Select
+            label={language === 'ku' ? 'پێش‌دیاری بەروار' : 'Date Preset'}
+            value={datePreset}
+            onChange={e => handlePresetChange(e.target.value as DatePreset)}
+          >
+            <option value="today">{language === 'ku' ? 'ئەمڕۆ' : 'Today'}</option>
+            <option value="yesterday">{language === 'ku' ? 'دوێنێ' : 'Yesterday'}</option>
+            <option value="this_week">{language === 'ku' ? 'ئەم هەفتەیە' : 'This Week'}</option>
+            <option value="last_week">{language === 'ku' ? 'هەفتەی ڕابردوو' : 'Last Week'}</option>
+            <option value="this_month">{language === 'ku' ? 'ئەم مانگە' : 'This Month'}</option>
+            <option value="last_month">{language === 'ku' ? 'مانگی ڕابردوو' : 'Last Month'}</option>
+            <option value="this_quarter">{language === 'ku' ? 'ئەم چارەکە' : 'This Quarter'}</option>
+            <option value="this_year">{language === 'ku' ? 'ئەمساڵ' : 'This Year'}</option>
+            <option value="custom">{language === 'ku' ? 'دڵخواز' : 'Custom'}</option>
+          </Select>
+
           <Input
             label={language === 'ku' ? 'لە بەروار' : 'From Date'}
             type="date"
             value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
+            onChange={e => {
+              setDateFrom(e.target.value);
+              setDatePreset('custom');
+            }}
           />
 
           <Input
             label={language === 'ku' ? 'بۆ بەروار' : 'To Date'}
             type="date"
             value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
+            onChange={e => {
+              setDateTo(e.target.value);
+              setDatePreset('custom');
+            }}
           />
+
+          <Select
+            label={language === 'ku' ? 'دۆخ' : 'Status'}
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="all">{language === 'ku' ? 'هەموو دۆخەکان' : 'All Statuses'}</option>
+            <option value="finished">{language === 'ku' ? 'تەواو' : 'Finished'}</option>
+            <option value="active">{language === 'ku' ? 'چالاک' : 'Active'}</option>
+            <option value="cancelled">{language === 'ku' ? 'هەڵوەشاوە' : 'Cancelled'}</option>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Select
+            label={language === 'ku' ? 'جۆری فرۆشتن' : 'Sale Type'}
+            value={saleTypeFilter}
+            onChange={e => setSaleTypeFilter(e.target.value)}
+          >
+            <option value="all">{language === 'ku' ? 'هەموو جۆرەکان' : 'All Types'}</option>
+            <option value="cash">{language === 'ku' ? 'نەقد' : 'Cash'}</option>
+            <option value="installment">{language === 'ku' ? 'بەش' : 'Installment'}</option>
+          </Select>
+
+          <div className="relative">
+            <Input
+              label={language === 'ku' ? 'گەڕان' : 'Search'}
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder={language === 'ku' ? 'ژمارەی داواکاری یان کڕیار...' : 'Order # or customer...'}
+            />
+            <Search size={16} className="absolute left-3 top-[38px] text-gray-400" />
+          </div>
 
           <div className="flex items-end gap-2">
             <Button onClick={fetchSales} disabled={loading} className="flex-1">
@@ -236,8 +394,14 @@ export function SalesReport() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'ژمارە' : 'Order #'}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'بەروار' : 'Date'}
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('created_at')}
+                    >
+                      <div className="flex items-center gap-1">
+                        {language === 'ku' ? 'بەروار' : 'Date'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'کڕیار' : 'Customer'}
@@ -248,14 +412,32 @@ export function SalesReport() {
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'دۆخ' : 'Status'}
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'کۆی گشتی' : 'Total'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('final_total_usd')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'کۆی گشتی' : 'Total'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'پارەدراو' : 'Paid'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('total_paid_usd')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'پارەدراو' : 'Paid'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'ماوە' : 'Balance'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('balance_due_usd')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'ماوە' : 'Balance'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -277,7 +459,7 @@ export function SalesReport() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant={sale.status === 'finished' ? 'success' : 'warning'}>
+                        <Badge variant={sale.status === 'finished' ? 'success' : sale.status === 'cancelled' ? 'danger' : 'warning'}>
                           {sale.status}
                         </Badge>
                       </td>
@@ -302,8 +484,11 @@ export function SalesReport() {
       {!loading && sales.length === 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
           <Receipt size={48} className="mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500">
-            {language === 'ku' ? 'تکایە فلتەرەکان هەڵبژێرە و دووگمەی پیشاندان دابگرە' : 'Select filters and click Generate to view report'}
+          <p className="text-gray-500 mb-2">
+            {language === 'ku' ? 'هیچ داواکارییەک نەدۆزرایەوە' : 'No sales data found'}
+          </p>
+          <p className="text-sm text-gray-400">
+            {language === 'ku' ? 'تکایە فلتەرەکان بگۆڕە یان داواکاری زیاد بکە' : 'Try adjusting filters or add some orders first'}
           </p>
         </div>
       )}

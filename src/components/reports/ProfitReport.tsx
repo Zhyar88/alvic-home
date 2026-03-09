@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Filter, Download, Users, Wallet } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Filter, Download, Users, Wallet, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Input, Select } from '../ui/Input';
@@ -8,16 +8,14 @@ import { Badge } from '../ui/Badge';
 import type { ProfitReport as ProfitReportType, Customer } from '../../types';
 
 type ReportPeriod = 'daily' | 'monthly' | 'yearly';
+type DatePreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
 
 export function ProfitReport() {
   const { language } = useLanguage();
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [datePreset, setDatePreset] = useState<DatePreset>('this_month');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [customerFilter, setCustomerFilter] = useState('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [reports, setReports] = useState<ProfitReportType[]>([]);
@@ -36,7 +34,68 @@ export function ProfitReport() {
 
   useEffect(() => {
     fetchCustomers();
+    applyDatePreset(datePreset);
   }, []);
+
+  const applyDatePreset = (preset: DatePreset) => {
+    const now = new Date();
+    let from = new Date();
+    let to = new Date();
+
+    switch (preset) {
+      case 'today':
+        from = new Date(now.setHours(0, 0, 0, 0));
+        to = new Date();
+        break;
+      case 'yesterday':
+        from = new Date(now.setDate(now.getDate() - 1));
+        from.setHours(0, 0, 0, 0);
+        to = new Date(from);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'this_week':
+        from = new Date(now.setDate(now.getDate() - now.getDay()));
+        from.setHours(0, 0, 0, 0);
+        to = new Date();
+        break;
+      case 'last_week':
+        from = new Date(now.setDate(now.getDate() - now.getDay() - 7));
+        from.setHours(0, 0, 0, 0);
+        to = new Date(from);
+        to.setDate(to.getDate() + 6);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'this_month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = new Date();
+        break;
+      case 'last_month':
+        from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        to = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case 'this_quarter':
+        const quarter = Math.floor(now.getMonth() / 3);
+        from = new Date(now.getFullYear(), quarter * 3, 1);
+        to = new Date();
+        break;
+      case 'this_year':
+        from = new Date(now.getFullYear(), 0, 1);
+        to = new Date();
+        break;
+      case 'custom':
+        return;
+    }
+
+    setDateFrom(from.toISOString().split('T')[0]);
+    setDateTo(to.toISOString().split('T')[0]);
+  };
+
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset);
+    if (preset !== 'custom') {
+      applyDatePreset(preset);
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -142,11 +201,27 @@ export function ProfitReport() {
         <div className="flex items-center gap-2 mb-4">
           <Filter size={18} className="text-gray-600" />
           <h3 className="font-semibold text-gray-900">
-            {language === 'ku' ? 'فلتەرکردن' : 'Filters'}
+            {language === 'ku' ? 'فلتەرکردنی پێشکەوتوو' : 'Advanced Filters'}
           </h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Select
+            label={language === 'ku' ? 'پێش‌دیاری بەروار' : 'Date Preset'}
+            value={datePreset}
+            onChange={e => handlePresetChange(e.target.value as DatePreset)}
+          >
+            <option value="today">{language === 'ku' ? 'ئەمڕۆ' : 'Today'}</option>
+            <option value="yesterday">{language === 'ku' ? 'دوێنێ' : 'Yesterday'}</option>
+            <option value="this_week">{language === 'ku' ? 'ئەم هەفتەیە' : 'This Week'}</option>
+            <option value="last_week">{language === 'ku' ? 'هەفتەی ڕابردوو' : 'Last Week'}</option>
+            <option value="this_month">{language === 'ku' ? 'ئەم مانگە' : 'This Month'}</option>
+            <option value="last_month">{language === 'ku' ? 'مانگی ڕابردوو' : 'Last Month'}</option>
+            <option value="this_quarter">{language === 'ku' ? 'ئەم چارەکە' : 'This Quarter'}</option>
+            <option value="this_year">{language === 'ku' ? 'ئەمساڵ' : 'This Year'}</option>
+            <option value="custom">{language === 'ku' ? 'دڵخواز' : 'Custom'}</option>
+          </Select>
+
           <Select
             label={language === 'ku' ? 'ماوە' : 'Period'}
             value={period}
@@ -161,14 +236,20 @@ export function ProfitReport() {
             label={language === 'ku' ? 'لە بەروار' : 'From Date'}
             type="date"
             value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
+            onChange={e => {
+              setDateFrom(e.target.value);
+              setDatePreset('custom');
+            }}
           />
 
           <Input
             label={language === 'ku' ? 'بۆ بەروار' : 'To Date'}
             type="date"
             value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
+            onChange={e => {
+              setDateTo(e.target.value);
+              setDatePreset('custom');
+            }}
           />
 
           <Select
@@ -183,13 +264,13 @@ export function ProfitReport() {
               </option>
             ))}
           </Select>
+        </div>
 
-          <div className="flex items-end gap-2">
-            <Button onClick={fetchReports} disabled={loading} className="flex-1">
-              <BarChart3 size={16} />
-              {loading ? (language === 'ku' ? 'چاوەڕوان بە...' : 'Loading...') : (language === 'ku' ? 'پیشاندان' : 'Generate')}
-            </Button>
-          </div>
+        <div className="flex justify-end">
+          <Button onClick={fetchReports} disabled={loading}>
+            <BarChart3 size={16} />
+            {loading ? (language === 'ku' ? 'چاوەڕوان بە...' : 'Loading...') : (language === 'ku' ? 'پیشاندان' : 'Generate')}
+          </Button>
         </div>
       </div>
 
@@ -350,8 +431,11 @@ export function ProfitReport() {
       {!loading && reports.length === 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
           <BarChart3 size={48} className="mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500">
-            {language === 'ku' ? 'تکایە فلتەرەکان هەڵبژێرە و دووگمەی پیشاندان دابگرە' : 'Select filters and click Generate to view reports'}
+          <p className="text-gray-500 mb-2">
+            {language === 'ku' ? 'هیچ داتایەکی قازانج نەدۆزرایەوە' : 'No profit data found'}
+          </p>
+          <p className="text-sm text-gray-400">
+            {language === 'ku' ? 'تکایە فلتەرەکان بگۆڕە یان داواکاری زیاد بکە' : 'Try adjusting filters or add some orders first'}
           </p>
         </div>
       )}
