@@ -1,152 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Calendar, DollarSign, Filter, Download, Users, Wallet } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import React, { useState } from 'react';
+import { BarChart3, Receipt, Users, CreditCard, Calendar } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Input, Select } from '../components/ui/Input';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
-import type { ProfitReport, Customer } from '../types';
+import { ProfitReport } from '../components/reports/ProfitReport';
+import { SalesReport } from '../components/reports/SalesReport';
+import { CustomerReport } from '../components/reports/CustomerReport';
+import { PaymentReport } from '../components/reports/PaymentReport';
+import { InstallmentReport } from '../components/reports/InstallmentReport';
 
-type ReportPeriod = 'daily' | 'monthly' | 'yearly';
+type ReportType = 'profit' | 'sales' | 'customers' | 'payments' | 'installments';
 
 export function Reports() {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { profile, loading: authLoading } = useAuth();
-  const [period, setPeriod] = useState<ReportPeriod>('monthly');
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-  const [customerFilter, setCustomerFilter] = useState('all');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [reports, setReports] = useState<ProfitReport[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState({
-    total_revenue: 0,
-    total_cost: 0,
-    gross_profit: 0,
-    total_expenses: 0,
-    net_profit: 0,
-    total_orders: 0,
-  });
+  const [activeTab, setActiveTab] = useState<ReportType>('profit');
 
-  const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const pct = (n: number) => `${Number(n || 0).toFixed(1)}%`;
-
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
-    try {
-      const { data } = await supabase
-        .from('customers')
-        .select('id, full_name_en, full_name_ku')
-        .eq('is_active', true)
-        .order('full_name_en');
-      setCustomers((data || []) as Customer[]);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    }
-  };
-
-  const fetchReports = async () => {
-    setLoading(true);
-    try {
-      const viewName = period === 'daily' ? 'daily_profit_report' : period === 'monthly' ? 'monthly_profit_report' : 'yearly_profit_report';
-
-      let query = supabase.from(viewName).select('*');
-
-      if (period === 'daily') {
-        query = query.gte('report_date', dateFrom).lte('report_date', dateTo);
-      } else if (period === 'monthly') {
-        query = query.gte('report_month', dateFrom).lte('report_month', dateTo);
-      } else {
-        query = query.gte('report_year', dateFrom).lte('report_year', dateTo);
-      }
-
-      if (customerFilter !== 'all') {
-        query = query.eq('customer_id', customerFilter);
-      }
-
-      const { data } = await query.order(
-        period === 'daily' ? 'report_date' : period === 'monthly' ? 'report_month' : 'report_year',
-        { ascending: false }
-      );
-
-      const reportData = (data || []) as ProfitReport[];
-      setReports(reportData);
-
-      const totals = reportData.reduce((acc, r) => ({
-        total_revenue: acc.total_revenue + Number(r.total_revenue || 0),
-        total_cost: acc.total_cost + Number(r.total_cost || 0),
-        gross_profit: acc.gross_profit + Number(r.gross_profit || 0),
-        total_expenses: acc.total_expenses + Number(r.total_expenses || 0),
-        net_profit: acc.net_profit + Number(r.net_profit || 0),
-        total_orders: acc.total_orders + Number(r.total_orders || 0),
-      }), {
-        total_revenue: 0,
-        total_cost: 0,
-        gross_profit: 0,
-        total_expenses: 0,
-        net_profit: 0,
-        total_orders: 0,
-      });
-
-      setSummary(totals);
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (period === 'yearly') return d.getFullYear().toString();
-    if (period === 'monthly') return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'long' });
-    return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  };
-
-  const exportToCSV = () => {
-    const headers = ['Date', 'Customer', 'Orders', 'Revenue', 'Cost', 'Gross Profit', 'Expenses', 'Net Profit'];
-    const rows = reports.map(r => [
-      formatDate(r.report_date || r.report_month || r.report_year),
-      language === 'ku' ? r.customer_name_ku || 'All' : r.customer_name_en || 'All',
-      r.total_orders,
-      r.total_revenue,
-      r.total_cost,
-      r.gross_profit,
-      r.total_expenses,
-      r.net_profit,
-    ]);
-
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `profit_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const profitMargin = summary.total_revenue > 0 ? (summary.gross_profit / summary.total_revenue) * 100 : 0;
-  const netMargin = summary.total_revenue > 0 ? (summary.net_profit / summary.total_revenue) * 100 : 0;
+  const tabs = [
+    { id: 'profit' as ReportType, icon: BarChart3, labelEn: 'Profit Analysis', labelKu: 'شیکاری قازانج' },
+    { id: 'sales' as ReportType, icon: Receipt, labelEn: 'Sales Summary', labelKu: 'پوختەی فرۆشتن' },
+    { id: 'customers' as ReportType, icon: Users, labelEn: 'Customer Analysis', labelKu: 'شیکاری کڕیاران' },
+    { id: 'payments' as ReportType, icon: CreditCard, labelEn: 'Payment Collections', labelKu: 'کۆکردنەوەی پارە' },
+    { id: 'installments' as ReportType, icon: Calendar, labelEn: 'Installment Status', labelKu: 'دۆخی بەشەکان' },
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {language === 'ku' ? 'ڕاپۆرتی قازانج' : 'Profit Reports'}
+            {language === 'ku' ? 'ڕاپۆرتەکان' : 'Reports'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {language === 'ku' ? 'شیکاری داهات، خەرجی و قازانج' : 'Revenue, expenses, and profit analysis'}
+            {language === 'ku' ? 'شیکاری و ڕاپۆرتی کاروبار' : 'Business analytics and reporting'}
           </p>
         </div>
       </div>
@@ -157,223 +42,36 @@ export function Reports() {
         </div>
       ) : profile?.role === 'administrator' ? (
         <>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter size={18} className="text-gray-600" />
-              <h3 className="font-semibold text-gray-900">
-                {language === 'ku' ? 'فلتەرکردن' : 'Filters'}
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Select
-                label={language === 'ku' ? 'ماوە' : 'Period'}
-                value={period}
-                onChange={e => setPeriod(e.target.value as ReportPeriod)}
-              >
-                <option value="daily">{language === 'ku' ? 'ڕۆژانە' : 'Daily'}</option>
-                <option value="monthly">{language === 'ku' ? 'مانگانە' : 'Monthly'}</option>
-                <option value="yearly">{language === 'ku' ? 'ساڵانە' : 'Yearly'}</option>
-              </Select>
-
-              <Input
-                label={language === 'ku' ? 'لە بەروار' : 'From Date'}
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-              />
-
-              <Input
-                label={language === 'ku' ? 'بۆ بەروار' : 'To Date'}
-                type="date"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-              />
-
-              <Select
-                label={language === 'ku' ? 'کڕیار' : 'Customer'}
-                value={customerFilter}
-                onChange={e => setCustomerFilter(e.target.value)}
-              >
-                <option value="all">{language === 'ku' ? 'هەموو کڕیاران' : 'All Customers'}</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {language === 'ku' ? c.full_name_ku : c.full_name_en}
-                  </option>
-                ))}
-              </Select>
-
-              <div className="flex items-end gap-2">
-                <Button onClick={fetchReports} disabled={loading} className="flex-1">
-                  <BarChart3 size={16} />
-                  {loading ? (language === 'ku' ? 'چاوەڕوان بە...' : 'Loading...') : (language === 'ku' ? 'پیشاندان' : 'Generate')}
-                </Button>
-              </div>
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="flex border-b border-gray-200 overflow-x-auto">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors border-b-2 ${
+                      isActive
+                        ? 'border-emerald-500 text-emerald-600 bg-emerald-50/50'
+                        : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {language === 'ku' ? tab.labelKu : tab.labelEn}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {reports.length > 0 && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign size={18} className="text-blue-600" />
-                    <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'داهات' : 'Revenue'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-blue-900">{fmt(summary.total_revenue)}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Wallet size={18} className="text-red-600" />
-                    <p className="text-xs font-medium text-red-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'تێچوو' : 'Cost'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-red-900">{fmt(summary.total_cost)}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp size={18} className="text-emerald-600" />
-                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
-                  <p className="text-xs text-emerald-600 mt-1">{pct(profitMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Wallet size={18} className="text-orange-600" />
-                    <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'خەرجییەکان' : 'Expenses'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-orange-900">{fmt(summary.total_expenses)}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign size={18} className="text-amber-600" />
-                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-amber-900">{fmt(summary.net_profit)}</p>
-                  <p className="text-xs text-amber-600 mt-1">{pct(netMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users size={18} className="text-gray-600" />
-                    <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-                      {language === 'ku' ? 'داواکاریەکان' : 'Orders'}
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{summary.total_orders}</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">
-                    {language === 'ku' ? 'وردەکارییەکان' : 'Detailed Report'}
-                  </h3>
-                  <Button onClick={exportToCSV} variant="outline" size="sm">
-                    <Download size={14} />
-                    {language === 'ku' ? 'هاوردەکردن CSV' : 'Export CSV'}
-                  </Button>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'بەروار' : 'Date'}
-                        </th>
-                        {customerFilter === 'all' && (
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            {language === 'ku' ? 'کڕیار' : 'Customer'}
-                          </th>
-                        )}
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'داواکاری' : 'Orders'}
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'داهات' : 'Revenue'}
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'تێچوو' : 'Cost'}
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'خەرجی' : 'Expenses'}
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {reports.map((report, idx) => {
-                        const gpm = Number(report.total_revenue) > 0 ? (Number(report.gross_profit) / Number(report.total_revenue)) * 100 : 0;
-                        const npm = Number(report.total_revenue) > 0 ? (Number(report.net_profit) / Number(report.total_revenue)) * 100 : 0;
-
-                        return (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                              {formatDate(report.report_date || report.report_month || report.report_year)}
-                            </td>
-                            {customerFilter === 'all' && (
-                              <td className="px-4 py-3 text-sm text-gray-700">
-                                {language === 'ku' ? report.customer_name_ku || '—' : report.customer_name_en || '—'}
-                              </td>
-                            )}
-                            <td className="px-4 py-3 text-sm text-center">
-                              <Badge variant="neutral">{report.total_orders}</Badge>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
-                              {fmt(Number(report.total_revenue))}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold text-red-700">
-                              {fmt(Number(report.total_cost))}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="text-sm font-semibold text-emerald-700">{fmt(Number(report.gross_profit))}</div>
-                              <div className="text-xs text-emerald-600">{pct(gpm)}</div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold text-orange-700">
-                              {fmt(Number(report.total_expenses))}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="text-sm font-semibold text-amber-700">{fmt(Number(report.net_profit))}</div>
-                              <div className="text-xs text-amber-600">{pct(npm)}</div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          )}
-
-          {!loading && reports.length === 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-              <BarChart3 size={48} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">
-                {language === 'ku' ? 'تکایە فلتەرەکان هەڵبژێرە و دووگمەی پیشاندان دابگرە' : 'Select filters and click Generate to view reports'}
-              </p>
-            </div>
-          )}
+          <div className="space-y-5">
+            {activeTab === 'profit' && <ProfitReport />}
+            {activeTab === 'sales' && <SalesReport />}
+            {activeTab === 'customers' && <CustomerReport />}
+            {activeTab === 'payments' && <PaymentReport />}
+            {activeTab === 'installments' && <InstallmentReport />}
+          </div>
         </>
       ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
