@@ -83,14 +83,14 @@ Deno.serve(async (req: Request) => {
     const userId = authData.user.id;
 
     const { error: insertError } = await supabaseAdmin.from("user_profiles").insert({
+      id: userId,
       user_id: userId,
       full_name_en: full_name_en || "",
       full_name_ku: full_name_ku || "",
       role: role || "employee",
+      custom_role_id: body.custom_role_id || null,
       phone: phone || "",
       is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     });
 
     if (insertError) {
