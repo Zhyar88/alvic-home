@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-200 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-300;
+  }
+}
+
+@layer components {
+  .page-container {
+    @apply p-4 lg:p-6 space-y-5;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm;
+  }
+
+  .card-header {
+    @apply px-5 py-4 border-b border-gray-100;
+  }
+
+  .card-body {
+    @apply p-5;
+  }
+
+  .stat-card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-1;
+  }
+
+  .form-label {
+    @apply block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide;
+  }
+
+  .form-input {
+    @apply w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900
+           placeholder-gray-400 bg-white transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500;
+  }
+
+  .form-select {
+    @apply w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900
+           bg-white transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500;
+  }
+
+  .table-header {
+    @apply bg-gray-50 border-b border-gray-100;
+  }
+
+  .table-header th {
+    @apply px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap;
+  }
+
+  .table-row {
+    @apply border-b border-gray-50 hover:bg-gray-50/80 transition-colors duration-100;
+  }
+
+  .table-cell {
+    @apply px-4 py-3 text-sm text-gray-700;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium
+           bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl
+           shadow-sm hover:shadow-md transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium
+           bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl
+           shadow-sm transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium
+           bg-amber-500 hover:bg-amber-600 text-white rounded-xl
+           shadow-sm hover:shadow-md transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .badge-emerald {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-emerald-100 text-emerald-700;
+  }
+
+  .badge-amber {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-amber-100 text-amber-700;
+  }
+
+  .badge-red {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-red-100 text-red-700;
+  }
+
+  .badge-blue {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-blue-100 text-blue-700;
+  }
+
+  .badge-gray {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-gray-100 text-gray-600;
+  }
+
+  .section-title {
+    @apply text-base font-semibold text-gray-900;
+  }
+
+  .section-subtitle {
+    @apply text-sm text-gray-500;
+  }
+
+  .divider {
+    @apply border-t border-gray-100 my-4;
+  }
+
+  .overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  }
+
+  .overlay-backdrop {
+    @apply absolute inset-0 bg-black/40 backdrop-blur-sm;
+  }
+}
+
+@layer utilities {
+  .text-gold {
+    color: #d97706;
+  }
+
+  .bg-gold {
+    background-color: #d97706;
+  }
+
+  .border-gold {
+    border-color: #d97706;
+  }
+
+  .ring-gold {
+    --tw-ring-color: #d97706;
+  }
+
+  .text-emerald-brand {
+    color: #065f46;
+  }
+
+  .bg-emerald-brand {
+    background-color: #065f46;
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  }
+
+  .shadow-card-hover {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.25s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
