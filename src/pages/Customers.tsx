@@ -170,14 +170,22 @@ export function Customers() {
   const uploadDocuments = async (customerId: string) => {
     if (!pendingDocs.length) return;
     setUploadingDocs(true);
+    const errors: string[] = [];
+
     for (const doc of pendingDocs) {
       const ext = doc.file.name.split('.').pop();
       const path = `${customerId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: uploadErr } = await supabase.storage
         .from('customer-documents')
         .upload(path, doc.file, { contentType: doc.file.type, upsert: false });
-      if (uploadErr) continue;
-      await supabase.from('customer_documents').insert({
+
+      if (uploadErr) {
+        console.error('Upload error:', uploadErr);
+        errors.push(`Failed to upload ${doc.file.name}: ${uploadErr.message}`);
+        continue;
+      }
+
+      const { error: insertErr } = await supabase.from('customer_documents').insert({
         customer_id: customerId,
         document_type: doc.document_type,
         label_en: doc.label_en,
@@ -188,9 +196,23 @@ export function Customers() {
         mime_type: doc.file.type,
         created_by: profile?.id,
       });
+
+      if (insertErr) {
+        console.error('Insert error:', insertErr);
+        errors.push(`Failed to save ${doc.file.name}: ${insertErr.message}`);
+        await supabase.storage.from('customer-documents').remove([path]);
+      }
     }
+
     setUploadingDocs(false);
+
+    if (errors.length > 0) {
+      setError(errors.join('\n'));
+      return false;
+    }
+
     setPendingDocs([]);
+    return true;
   };
 
   const handleSave = async () => {
@@ -208,7 +230,15 @@ export function Customers() {
       if (e) { setError(e.message); setSaving(false); return; }
       savedId = data?.id;
     }
-    if (savedId && pendingDocs.length) await uploadDocuments(savedId);
+
+    if (savedId && pendingDocs.length) {
+      const uploadSuccess = await uploadDocuments(savedId);
+      if (!uploadSuccess) {
+        setSaving(false);
+        return;
+      }
+    }
+
     setSaving(false);
     setShowModal(false);
     fetchCustomers();
