@@ -2,10 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Filter, Download, Users, Wallet, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Input, Select } from '../ui/Input';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import type { ProfitReport as ProfitReportType, Customer } from '../../types';
+import type { Customer } from '../../types';
+
+interface ProfitReportData {
+  period: string;
+  total_revenue: number;
+  total_cost: number;
+  gross_profit: number;
+  total_expenses: number;
+  net_profit: number;
+  gross_margin: number;
+  net_margin: number;
+  total_orders: number;
+}
 
 type ReportPeriod = 'daily' | 'monthly' | 'yearly';
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
@@ -18,7 +31,7 @@ export function ProfitReport() {
   const [dateTo, setDateTo] = useState('');
   const [customerFilter, setCustomerFilter] = useState('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [reports, setReports] = useState<ProfitReportType[]>([]);
+  const [reports, setReports] = useState<ProfitReportData[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({
     total_revenue: 0,
@@ -113,37 +126,106 @@ export function ProfitReport() {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const viewName = period === 'daily' ? 'daily_profit_report' : period === 'monthly' ? 'monthly_profit_report' : 'yearly_profit_report';
-
-      let query = supabase.from(viewName).select('*');
-
-      if (period === 'daily') {
-        query = query.gte('report_date', dateFrom).lte('report_date', dateTo);
-      } else if (period === 'monthly') {
-        query = query.gte('report_month', dateFrom).lte('report_month', dateTo);
-      } else {
-        query = query.gte('report_year', dateFrom).lte('report_year', dateTo);
-      }
+      let ordersQuery = supabase
+        .from('orders')
+        .select('*')
+        .gte('created_at', dateFrom)
+        .lte('created_at', dateTo + 'T23:59:59')
+        .neq('status', 'draft');
 
       if (customerFilter !== 'all') {
-        query = query.eq('customer_id', customerFilter);
+        ordersQuery = ordersQuery.eq('customer_id', customerFilter);
       }
 
-      const { data } = await query.order(
-        period === 'daily' ? 'report_date' : period === 'monthly' ? 'report_month' : 'report_year',
-        { ascending: false }
-      );
+      const { data: ordersData } = await ordersQuery;
 
-      const reportData = (data || []) as ProfitReportType[];
+      const { data: expensesData } = await supabase
+        .from('expenses')
+        .select('*')
+        .gte('expense_date', dateFrom)
+        .lte('expense_date', dateTo);
+
+      const dataByPeriod = new Map<string, ProfitReportData>();
+
+      (ordersData || []).forEach(order => {
+        const date = new Date(order.created_at);
+        let periodKey: string;
+
+        if (period === 'yearly') {
+          periodKey = date.getFullYear().toString();
+        } else if (period === 'monthly') {
+          periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        } else {
+          periodKey = date.toISOString().split('T')[0];
+        }
+
+        if (!dataByPeriod.has(periodKey)) {
+          dataByPeriod.set(periodKey, {
+            period: periodKey,
+            total_revenue: 0,
+            total_cost: 0,
+            gross_profit: 0,
+            total_expenses: 0,
+            net_profit: 0,
+            gross_margin: 0,
+            net_margin: 0,
+            total_orders: 0,
+          });
+        }
+
+        const data = dataByPeriod.get(periodKey)!;
+        data.total_revenue += Number(order.final_total_usd || 0);
+        data.total_cost += Number(order.cost_usd || 0);
+        data.gross_profit += Number(order.total_profit_usd || 0);
+        data.total_orders += 1;
+      });
+
+      (expensesData || []).forEach(expense => {
+        const date = new Date(expense.expense_date);
+        let periodKey: string;
+
+        if (period === 'yearly') {
+          periodKey = date.getFullYear().toString();
+        } else if (period === 'monthly') {
+          periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        } else {
+          periodKey = date.toISOString().split('T')[0];
+        }
+
+        if (!dataByPeriod.has(periodKey)) {
+          dataByPeriod.set(periodKey, {
+            period: periodKey,
+            total_revenue: 0,
+            total_cost: 0,
+            gross_profit: 0,
+            total_expenses: 0,
+            net_profit: 0,
+            gross_margin: 0,
+            net_margin: 0,
+            total_orders: 0,
+          });
+        }
+
+        const data = dataByPeriod.get(periodKey)!;
+        data.total_expenses += Number(expense.amount_usd || 0);
+      });
+
+      dataByPeriod.forEach(data => {
+        data.net_profit = data.gross_profit - data.total_expenses;
+        data.gross_margin = data.total_revenue > 0 ? (data.gross_profit / data.total_revenue) * 100 : 0;
+        data.net_margin = data.total_revenue > 0 ? (data.net_profit / data.total_revenue) * 100 : 0;
+      });
+
+      const reportData = Array.from(dataByPeriod.values()).sort((a, b) => b.period.localeCompare(a.period));
       setReports(reportData);
 
       const totals = reportData.reduce((acc, r) => ({
-        total_revenue: acc.total_revenue + Number(r.total_revenue || 0),
-        total_cost: acc.total_cost + Number(r.total_cost || 0),
-        gross_profit: acc.gross_profit + Number(r.gross_profit || 0),
-        total_expenses: acc.total_expenses + Number(r.total_expenses || 0),
-        net_profit: acc.net_profit + Number(r.net_profit || 0),
-        total_orders: acc.total_orders + Number(r.total_orders || 0),
+        total_revenue: acc.total_revenue + r.total_revenue,
+        total_cost: acc.total_cost + r.total_cost,
+        gross_profit: acc.gross_profit + r.gross_profit,
+        total_expenses: acc.total_expenses + r.total_expenses,
+        net_profit: acc.net_profit + r.net_profit,
+        total_orders: acc.total_orders + r.total_orders,
       }), {
         total_revenue: 0,
         total_cost: 0,
@@ -161,25 +243,31 @@ export function ProfitReport() {
     }
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (period === 'yearly') return d.getFullYear().toString();
-    if (period === 'monthly') return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'long' });
-    return d.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const formatPeriod = (periodStr: string) => {
+    if (period === 'yearly') {
+      return periodStr;
+    } else if (period === 'monthly') {
+      const [year, month] = periodStr.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return date.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'long' });
+    } else {
+      const date = new Date(periodStr);
+      return date.toLocaleDateString(language === 'ku' ? 'ku' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
   };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Customer', 'Orders', 'Revenue', 'Cost', 'Gross Profit', 'Expenses', 'Net Profit'];
+    const headers = ['Period', 'Orders', 'Revenue', 'Cost', 'Gross Profit', 'Expenses', 'Net Profit', 'Gross Margin', 'Net Margin'];
     const rows = reports.map(r => [
-      formatDate(r.report_date || r.report_month || r.report_year),
-      language === 'ku' ? r.customer_name_ku || 'All' : r.customer_name_en || 'All',
+      formatPeriod(r.period),
       r.total_orders,
-      r.total_revenue,
-      r.total_cost,
-      r.gross_profit,
-      r.total_expenses,
-      r.net_profit,
+      r.total_revenue.toFixed(2),
+      r.total_cost.toFixed(2),
+      r.gross_profit.toFixed(2),
+      r.total_expenses.toFixed(2),
+      r.net_profit.toFixed(2),
+      r.gross_margin.toFixed(1) + '%',
+      r.net_margin.toFixed(1) + '%',
     ]);
 
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -356,13 +444,8 @@ export function ProfitReport() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'بەروار' : 'Date'}
+                      {language === 'ku' ? 'بەروار' : 'Period'}
                     </th>
-                    {customerFilter === 'all' && (
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        {language === 'ku' ? 'کڕیار' : 'Customer'}
-                      </th>
-                    )}
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'داواکاری' : 'Orders'}
                     </th>
@@ -384,43 +467,33 @@ export function ProfitReport() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {reports.map((report, idx) => {
-                    const gpm = Number(report.total_revenue) > 0 ? (Number(report.gross_profit) / Number(report.total_revenue)) * 100 : 0;
-                    const npm = Number(report.total_revenue) > 0 ? (Number(report.net_profit) / Number(report.total_revenue)) * 100 : 0;
-
-                    return (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                          {formatDate(report.report_date || report.report_month || report.report_year)}
-                        </td>
-                        {customerFilter === 'all' && (
-                          <td className="px-4 py-3 text-sm text-gray-700">
-                            {language === 'ku' ? report.customer_name_ku || '—' : report.customer_name_en || '—'}
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-sm text-center">
-                          <Badge variant="neutral">{report.total_orders}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
-                          {fmt(Number(report.total_revenue))}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold text-red-700">
-                          {fmt(Number(report.total_cost))}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="text-sm font-semibold text-emerald-700">{fmt(Number(report.gross_profit))}</div>
-                          <div className="text-xs text-emerald-600">{pct(gpm)}</div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold text-orange-700">
-                          {fmt(Number(report.total_expenses))}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="text-sm font-semibold text-amber-700">{fmt(Number(report.net_profit))}</div>
-                          <div className="text-xs text-amber-600">{pct(npm)}</div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {reports.map((report, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                        {formatPeriod(report.period)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <Badge variant="neutral">{report.total_orders}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
+                        {fmt(report.total_revenue)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-red-700">
+                        {fmt(report.total_cost)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-sm font-semibold text-emerald-700">{fmt(report.gross_profit)}</div>
+                        <div className="text-xs text-emerald-600">{pct(report.gross_margin)}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-orange-700">
+                        {fmt(report.total_expenses)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-sm font-semibold text-amber-700">{fmt(report.net_profit)}</div>
+                        <div className="text-xs text-amber-600">{pct(report.net_margin)}</div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
