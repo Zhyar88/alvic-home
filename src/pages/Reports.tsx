@@ -386,7 +386,7 @@ export function Reports() {
         <div>
           <div className="flex items-center gap-3 mb-5">
             <Button variant="ghost" onClick={() => setActiveReport(null)} size="sm">← Back</Button>
-            <h2 className="font-bold text-gray-900">{t(reportCards.find(r => r.id === activeReport)?.titleKey as Parameters<typeof t>[0] || 'reports')}</h2>
+            <h2 className="font-bold text-gray-900">{t(reportCardDefs.find(r => r.id === activeReport)?.titleKey as Parameters<typeof t>[0] || 'reports')}</h2>
           </div>
 
           <div className="flex flex-wrap gap-3 mb-5 p-4 bg-gray-50 rounded-2xl">
