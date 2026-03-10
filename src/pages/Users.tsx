@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Edit, UserCheck, UserX, Shield } from 'lucide-react';
+import { Plus, CreditCard as Edit, UserCheck, UserX, Shield } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
