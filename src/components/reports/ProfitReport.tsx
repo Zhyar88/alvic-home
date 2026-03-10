@@ -175,7 +175,7 @@ export function ProfitReport() {
 
         const data = dataByPeriod.get(periodKey)!;
         data.total_revenue += Number(order.final_total_usd || 0);
-        data.total_cost += Number(order.cost_usd || 0);
+        data.total_cost += Number(order.total_cost_usd || 0);
         data.gross_profit += Number(order.total_profit_usd || 0);
         data.total_orders += 1;
       });
