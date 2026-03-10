@@ -1,35 +1,10 @@
+// Load environment variables FIRST before any other imports
+import './env.js';
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { existsSync } from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Try multiple paths for .env file
-const envPaths = [
-  join(__dirname, '../.env'),           // When running from compiled dist
-  join(process.cwd(), '.env'),          // When running from server directory
-  join(process.cwd(), 'server/.env'),   // When running from project root
-];
-
-let envLoaded = false;
-for (const envPath of envPaths) {
-  if (existsSync(envPath)) {
-    dotenv.config({ path: envPath });
-    console.log(`✓ Loaded environment from: ${envPath}`);
-    envLoaded = true;
-    break;
-  }
-}
-
-if (!envLoaded) {
-  console.warn('⚠ No .env file found, using system environment variables');
-}
-
-// Import routes (these may import database.ts which needs env loaded)
+// Import routes (these will now have env variables available)
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import customersRoutes from './routes/customers.js';

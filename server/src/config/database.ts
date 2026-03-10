@@ -1,10 +1,12 @@
+import '../env.js';
 import pg from 'pg';
 
 const { Pool } = pg;
 
-// Env should be loaded by index.ts before this module is imported
+// Env should be loaded by env.ts before this module is imported
 if (!process.env.DATABASE_URL) {
   console.error('❌ DATABASE_URL is not set in environment variables!');
+  console.error('Please create a .env file in the server directory with DATABASE_URL');
   process.exit(1);
 }
 
