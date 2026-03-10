@@ -42,7 +42,7 @@ export function ExchangeRates() {
       rate_cash: Number(formData.rate_cash),
       rate_installment: Number(formData.rate_installment),
       effective_date: formData.effective_date,
-      set_by: profile?.id,
+      created_by: profile?.id,
       notes_en: formData.notes_en,
       notes_ku: formData.notes_ku,
       created_at: new Date().toISOString(),
