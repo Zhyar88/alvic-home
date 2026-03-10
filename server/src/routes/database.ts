@@ -8,6 +8,12 @@ router.get('/:table', async (req: Request, res: Response) => {
     const { table } = req.params;
     const { select, count, limit, offset, or } = req.query;
 
+    // Sanitize table name (only allow alphanumeric and underscore)
+    const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    if (sanitizedTable !== table) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
     const filters: Array<{ column: string; op: string; value: any }> = [];
     const orders: Array<{ column: string; dir: string }> = [];
 
@@ -25,8 +31,18 @@ router.get('/:table', async (req: Request, res: Response) => {
       }
     });
 
-    const columns = select && select !== '*' ? String(select) : '*';
-    let sql = `SELECT ${columns} FROM ${table}`;
+    // Sanitize column names in select
+    let columns = '*';
+    if (select && select !== '*') {
+      const cols = String(select).split(',').map(c => c.trim());
+      const sanitizedCols = cols.filter(c => /^[a-zA-Z0-9_]+$/.test(c));
+      if (sanitizedCols.length !== cols.length) {
+        return res.status(400).json({ error: 'Invalid column names' });
+      }
+      columns = sanitizedCols.join(', ');
+    }
+
+    let sql = `SELECT ${columns} FROM ${sanitizedTable}`;
     const values: any[] = [];
     let paramIndex = 1;
 
@@ -34,8 +50,12 @@ router.get('/:table', async (req: Request, res: Response) => {
       const orConditions = String(or).split(',').map(cond => {
         const match = cond.match(/(\w+)\.ilike\.%(.+)%/);
         if (match) {
-          values.push(`%${match[2]}%`);
-          return `${match[1]} ILIKE $${paramIndex++}`;
+          const column = match[1];
+          const searchValue = match[2];
+          // Sanitize column name
+          if (!/^[a-zA-Z0-9_]+$/.test(column)) return '';
+          values.push(`%${searchValue}%`);
+          return `${column} ILIKE $${paramIndex++}`;
         }
         return '';
       }).filter(Boolean);
@@ -45,6 +65,9 @@ router.get('/:table', async (req: Request, res: Response) => {
       }
     } else if (filters.length > 0) {
       const conditions = filters.map(f => {
+        // Sanitize column name
+        if (!/^[a-zA-Z0-9_]+$/.test(f.column)) return '';
+
         if (f.op === 'eq') {
           values.push(f.value);
           return `${f.column} = $${paramIndex++}`;
@@ -68,22 +91,39 @@ router.get('/:table', async (req: Request, res: Response) => {
     }
 
     if (orders.length > 0) {
-      sql += ` ORDER BY ${orders.map(o => `${o.column} ${o.dir.toUpperCase()}`).join(', ')}`;
+      const orderClauses = orders.map(o => {
+        // Sanitize column name and direction
+        if (!/^[a-zA-Z0-9_]+$/.test(o.column)) return '';
+        const dir = o.dir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+        return `${o.column} ${dir}`;
+      }).filter(Boolean);
+
+      if (orderClauses.length > 0) {
+        sql += ` ORDER BY ${orderClauses.join(', ')}`;
+      }
     }
 
     let totalCount: number | undefined;
     if (count === 'exact') {
-      const countSql = `SELECT COUNT(*) FROM ${table}` +
+      const countSql = `SELECT COUNT(*) FROM ${sanitizedTable}` +
         (filters.length > 0 ? ` WHERE ${filters.map((f, i) => `${f.column} ${f.op === 'eq' ? '=' : '!='} $${i + 1}`).join(' AND ')}` : '');
       const countResult = await pool.query(countSql, filters.map(f => f.value));
       totalCount = parseInt(countResult.rows[0].count);
     }
 
     if (limit) {
-      sql += ` LIMIT ${parseInt(String(limit))}`;
+      const limitNum = parseInt(String(limit));
+      if (isNaN(limitNum) || limitNum < 0) {
+        return res.status(400).json({ error: 'Invalid limit' });
+      }
+      sql += ` LIMIT ${limitNum}`;
     }
     if (offset) {
-      sql += ` OFFSET ${parseInt(String(offset))}`;
+      const offsetNum = parseInt(String(offset));
+      if (isNaN(offsetNum) || offsetNum < 0) {
+        return res.status(400).json({ error: 'Invalid offset' });
+      }
+      sql += ` OFFSET ${offsetNum}`;
     }
 
     const result = await pool.query(sql, values);
@@ -97,6 +137,13 @@ router.get('/:table', async (req: Request, res: Response) => {
 router.post('/:table', async (req: Request, res: Response) => {
   try {
     const { table } = req.params;
+
+    // Sanitize table name
+    const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    if (sanitizedTable !== table) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
     const records = Array.isArray(req.body) ? req.body : [req.body];
 
     if (records.length === 0) {
@@ -104,19 +151,26 @@ router.post('/:table', async (req: Request, res: Response) => {
     }
 
     const keys = Object.keys(records[0]);
-    console.log(`📝 Inserting into ${table}:`, keys);
+
+    // Sanitize column names
+    const sanitizedKeys = keys.filter(k => /^[a-zA-Z0-9_]+$/.test(k));
+    if (sanitizedKeys.length !== keys.length) {
+      return res.status(400).json({ error: 'Invalid column names' });
+    }
+
+    console.log(`📝 Inserting into ${sanitizedTable}:`, sanitizedKeys);
 
     const values: any[] = [];
     const valueRows: string[] = [];
     let paramIndex = 1;
 
     records.forEach(record => {
-      const rowPlaceholders = keys.map(() => `$${paramIndex++}`);
+      const rowPlaceholders = sanitizedKeys.map(() => `$${paramIndex++}`);
       valueRows.push(`(${rowPlaceholders.join(', ')})`);
-      keys.forEach(key => values.push(record[key]));
+      sanitizedKeys.forEach(key => values.push(record[key]));
     });
 
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
+    const sql = `INSERT INTO ${sanitizedTable} (${sanitizedKeys.join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
     const result = await pool.query(sql, values);
 
     res.json({ data: result.rows });
@@ -131,23 +185,39 @@ router.patch('/:table', async (req: Request, res: Response) => {
     const { table } = req.params;
     const { data, filters } = req.body;
 
+    // Sanitize table name
+    const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    if (sanitizedTable !== table) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
     if (!data) {
       return res.status(400).json({ error: 'No data provided' });
     }
 
     const updates = Object.keys(data);
+
+    // Sanitize column names
+    const sanitizedUpdates = updates.filter(k => /^[a-zA-Z0-9_]+$/.test(k));
+    if (sanitizedUpdates.length !== updates.length) {
+      return res.status(400).json({ error: 'Invalid column names' });
+    }
+
     const values: any[] = [];
     let paramIndex = 1;
 
-    const setClause = updates.map(key => {
+    const setClause = sanitizedUpdates.map(key => {
       values.push(data[key]);
       return `${key} = $${paramIndex++}`;
     }).join(', ');
 
-    let sql = `UPDATE ${table} SET ${setClause}`;
+    let sql = `UPDATE ${sanitizedTable} SET ${setClause}`;
 
     if (filters && filters.length > 0) {
       const conditions = filters.map((f: any) => {
+        // Sanitize column name
+        if (!/^[a-zA-Z0-9_]+$/.test(f.column)) return '';
+
         if (f.type === 'eq') {
           values.push(f.value);
           return `${f.column} = $${paramIndex++}`;
@@ -175,12 +245,21 @@ router.delete('/:table', async (req: Request, res: Response) => {
     const { table } = req.params;
     const { filters } = req.body;
 
-    let sql = `DELETE FROM ${table}`;
+    // Sanitize table name
+    const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    if (sanitizedTable !== table) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    let sql = `DELETE FROM ${sanitizedTable}`;
     const values: any[] = [];
     let paramIndex = 1;
 
     if (filters && filters.length > 0) {
       const conditions = filters.map((f: any) => {
+        // Sanitize column name
+        if (!/^[a-zA-Z0-9_]+$/.test(f.column)) return '';
+
         if (f.type === 'eq') {
           values.push(f.value);
           return `${f.column} = $${paramIndex++}`;
