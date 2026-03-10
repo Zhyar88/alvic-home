@@ -10,6 +10,7 @@ dotenv.config();
 const router = Router();
 
 interface SignUpBody {
+  username: string;
   email: string;
   password: string;
   full_name_en: string;
@@ -18,16 +19,17 @@ interface SignUpBody {
 }
 
 interface SignInBody {
-  email: string;
+  username?: string;
+  email?: string;
   password: string;
 }
 
 // Register a new user
 router.post('/register', async (req: Request<{}, {}, SignUpBody>, res: Response) => {
   try {
-    const { email, password, full_name_en, full_name_ku, phone } = req.body;
+    const { username, email, password, full_name_en, full_name_ku, phone } = req.body;
 
-    if (!email || !password || !full_name_en) {
+    if (!username || !email || !password || !full_name_en) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -37,11 +39,11 @@ router.post('/register', async (req: Request<{}, {}, SignUpBody>, res: Response)
 
     const client = await pool.connect();
     try {
-      // Create user (we'll store in a custom users table)
+      // Create user
       await client.query(
-        `INSERT INTO auth_users (id, email, password_hash, created_at)
-         VALUES ($1, $2, $3, NOW())`,
-        [userId, email, hashedPassword]
+        `INSERT INTO auth_users (id, username, email, password_hash, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [userId, username, email, hashedPassword]
       );
 
       // Create user profile
@@ -61,7 +63,7 @@ router.post('/register', async (req: Request<{}, {}, SignUpBody>, res: Response)
     }
   } catch (error: any) {
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'Email already exists' });
+      return res.status(409).json({ error: 'Username or email already exists' });
     }
     res.status(500).json({ error: error.message });
   }
@@ -70,18 +72,20 @@ router.post('/register', async (req: Request<{}, {}, SignUpBody>, res: Response)
 // Login
 router.post('/login', async (req: Request<{}, {}, SignInBody>, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+    if ((!username && !email) || !password) {
+      return res.status(400).json({ error: 'Username/email and password required' });
     }
 
+    // Support login with either username or email
+    const loginField = username || email;
     const result = await query(
-      `SELECT au.id, au.email, au.password_hash, up.role
+      `SELECT au.id, au.username, au.email, au.password_hash, up.role
        FROM auth_users au
        LEFT JOIN user_profiles up ON au.id = up.user_id
-       WHERE au.email = $1`,
-      [email]
+       WHERE au.username = $1 OR au.email = $1`,
+      [loginField]
     );
 
     if (result.rowCount === 0) {
