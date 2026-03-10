@@ -104,6 +104,8 @@ router.post('/:table', async (req: Request, res: Response) => {
     }
 
     const keys = Object.keys(records[0]);
+    console.log(`📝 Inserting into ${table}:`, keys);
+
     const values: any[] = [];
     const valueRows: string[] = [];
     let paramIndex = 1;
