@@ -222,12 +222,19 @@ export function SalesReport() {
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortOrder(newOrder);
     } else {
       setSortField(field);
       setSortOrder('desc');
     }
   };
+
+  useEffect(() => {
+    if (dateFrom && dateTo) {
+      fetchSales();
+    }
+  }, [sortField, sortOrder]);
 
   const collectionRate = summary.total_sales > 0 ? (summary.total_collected / summary.total_sales) * 100 : 0;
 

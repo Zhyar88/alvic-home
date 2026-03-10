@@ -25,6 +25,8 @@ interface ProfitReportData {
 
 type ReportPeriod = 'daily' | 'monthly' | 'yearly';
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
+type SortField = 'period' | 'total_orders' | 'total_revenue' | 'cash_collected' | 'total_cost' | 'gross_profit' | 'cash_profit' | 'total_expenses' | 'net_profit' | 'cash_net_profit';
+type SortOrder = 'asc' | 'desc';
 
 export function ProfitReport() {
   const { language } = useLanguage();
@@ -35,6 +37,8 @@ export function ProfitReport() {
   const [customerFilter, setCustomerFilter] = useState('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [reports, setReports] = useState<ProfitReportData[]>([]);
+  const [sortField, setSortField] = useState<SortField>('period');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({
     total_revenue: 0,
@@ -248,7 +252,7 @@ export function ProfitReport() {
         data.net_margin = data.total_revenue > 0 ? (data.net_profit / data.total_revenue) * 100 : 0;
       });
 
-      const reportData = Array.from(dataByPeriod.values()).sort((a, b) => b.period.localeCompare(a.period));
+      let reportData = Array.from(dataByPeriod.values());
       setReports(reportData);
 
       const totals = reportData.reduce((acc, r) => ({
@@ -318,6 +322,30 @@ export function ProfitReport() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const sortedReports = [...reports].sort((a, b) => {
+    let aVal = a[sortField];
+    let bVal = b[sortField];
+
+    if (sortField === 'period') {
+      return sortOrder === 'asc'
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
+    }
+
+    const aNum = Number(aVal) || 0;
+    const bNum = Number(bVal) || 0;
+    return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+  });
 
   const profitMargin = summary.total_revenue > 0 ? (summary.gross_profit / summary.total_revenue) * 100 : 0;
   const netMargin = summary.total_revenue > 0 ? (summary.net_profit / summary.total_revenue) * 100 : 0;
@@ -508,40 +536,100 @@ export function ProfitReport() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'بەروار' : 'Period'}
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('period')}
+                    >
+                      <div className="flex items-center gap-1">
+                        {language === 'ku' ? 'بەروار' : 'Period'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'داواکاری' : 'Orders'}
+                    <th
+                      className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('total_orders')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        {language === 'ku' ? 'داواکاری' : 'Orders'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'کۆی داهات' : 'Total Revenue'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('total_revenue')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'کۆی داهات' : 'Total Revenue'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('cash_collected')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'تێچوو' : 'Cost'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('total_cost')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'تێچوو' : 'Cost'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'قازانجی کۆ' : 'Total Profit'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('gross_profit')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'قازانجی کۆ' : 'Total Profit'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'قازانجی پارە' : 'Cash Profit'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('cash_profit')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'قازانجی پارە' : 'Cash Profit'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'خەرجی' : 'Expenses'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('total_expenses')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'خەرجی' : 'Expenses'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('net_profit')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'قازانجی پارە دواییە' : 'Cash Net Profit'}
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleSort('cash_net_profit')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {language === 'ku' ? 'قازانجی پارە دواییە' : 'Cash Net Profit'}
+                        <ArrowUpDown size={12} />
+                      </div>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {reports.map((report, idx) => (
+                  {sortedReports.map((report, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 font-medium">
                         {formatPeriod(report.period)}
