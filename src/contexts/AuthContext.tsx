@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import { authAPI } from '../lib/api';
 import type { UserProfile, Role } from '../types';
+
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -77,78 +83,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [customRole, setCustomRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (data) {
-      if (data.is_active === false) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setProfile(null);
-        setCustomRole(null);
-        return false;
-      }
-      if (data.role === 'custom' && data.custom_role_id) {
-        const { data: roleData } = await supabase
-          .from('roles')
-          .select('*')
-          .eq('id', data.custom_role_id)
-          .maybeSingle();
-        setCustomRole(roleData as Role | null);
-      } else {
-        setCustomRole(null);
-      }
-      setProfile(data as UserProfile);
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      return true;
-    }
-    return false;
-  };
-
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session?.user) {
-        setUser(null);
-        setProfile(null);
-        setCustomRole(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      setLoading(false);
+    } else {
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    }
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-    if (data.user) {
-      const active = await fetchProfile(data.user.id);
-      if (!active) return { error: 'Your account has been deactivated. Please contact an administrator.' };
+    try {
+      const data = await authAPI.login(email, password);
+
+      if (data.user) {
+        setUser(data.user);
+        setProfile({
+          id: data.user.id,
+          user_id: data.user.id,
+          full_name: data.user.full_name,
+          role: data.user.role,
+          is_active: data.user.is_active,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as UserProfile);
+      }
+
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message || 'Login failed' };
     }
-    return { error: null };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    authAPI.logout();
     setUser(null);
     setProfile(null);
     setCustomRole(null);
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
   };
 
   const hasPermission = (module: string, action: string): boolean => {

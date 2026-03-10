@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Filter, Download, DollarSign, ArrowUpDown } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Input, Select } from '../ui/Input';
 import { Button } from '../ui/Button';

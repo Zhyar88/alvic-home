@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
 import type { LockSession } from '../types';
 
 interface CashRegisterContextType {

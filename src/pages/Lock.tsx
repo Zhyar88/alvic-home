@@ -3,7 +3,6 @@ import {
   Lock as LockIcon, Unlock, TrendingUp, TrendingDown, DollarSign,
   ChevronRight, X, CreditCard, Receipt, Calendar, Eye, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCashRegister } from '../contexts/CashRegisterContext';

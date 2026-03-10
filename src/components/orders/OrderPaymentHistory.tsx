@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { X, CreditCard, Clock, CheckCircle, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Badge, InstallmentStatusBadge, OrderStatusBadge } from '../ui/Badge';
 import type { Order, Payment, InstallmentEntry } from '../../types';

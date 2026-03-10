@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Plus, Search, RotateCcw, ChevronUp, ChevronDown, ChevronsUpDown, Lock as LockIcon, Printer } from 'lucide-react';
 import { PaymentReceipt } from '../components/payments/PaymentReceipt';
-import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCashRegister } from '../contexts/CashRegisterContext';

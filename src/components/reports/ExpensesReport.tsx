@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Receipt, Filter, Download, DollarSign, TrendingDown, ArrowUpDown, PieChart } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Input, Select } from '../ui/Input';
 import { Button } from '../ui/Button';

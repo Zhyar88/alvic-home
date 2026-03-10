@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { ShoppingBag, Users, DollarSign, AlertCircle, TrendingUp, Clock, CheckCircle, Package } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Badge, OrderStatusBadge } from '../components/ui/Badge';

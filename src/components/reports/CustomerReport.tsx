@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Users, Download, Search, ArrowUpDown } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';

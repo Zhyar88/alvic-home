@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, DollarSign, TrendingUp, AlertCircle, ArrowUpDown, CheckCircle, Clock, XCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';

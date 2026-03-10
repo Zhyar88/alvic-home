@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -49,36 +48,8 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
     }
 
     setLoading(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) {
-      setError('Unable to verify your identity. Please log in again.');
-      setLoading(false);
-      return;
-    }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    });
-
-    if (signInError) {
-      setError('Current password is incorrect.');
-      setLoading(false);
-      return;
-    }
-
-    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-
-    if (updateError) {
-      setError(updateError.message);
-      setLoading(false);
-      return;
-    }
-
+    setError('Password change functionality requires backend API implementation.');
     setLoading(false);
-    setSuccess(true);
-    setTimeout(() => handleClose(), 2000);
   };
 
   const EyeToggle = ({ show, onToggle }: { show: boolean; onToggle: () => void }) => (

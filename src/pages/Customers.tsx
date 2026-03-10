@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Plus, Search, CreditCard as Edit, Eye, Phone, MapPin, UserCheck, FileText, Upload, Download, Trash2, X, FileBadge } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
