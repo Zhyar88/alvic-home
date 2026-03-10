@@ -11,10 +11,13 @@ import type { Customer } from '../../types';
 interface ProfitReportData {
   period: string;
   total_revenue: number;
+  cash_collected: number;
   total_cost: number;
   gross_profit: number;
+  cash_profit: number;
   total_expenses: number;
   net_profit: number;
+  cash_net_profit: number;
   gross_margin: number;
   net_margin: number;
   total_orders: number;
@@ -35,10 +38,13 @@ export function ProfitReport() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({
     total_revenue: 0,
+    cash_collected: 0,
     total_cost: 0,
     gross_profit: 0,
+    cash_profit: 0,
     total_expenses: 0,
     net_profit: 0,
+    cash_net_profit: 0,
     total_orders: 0,
   });
 
@@ -139,6 +145,20 @@ export function ProfitReport() {
 
       const { data: ordersData } = await ordersQuery;
 
+      // Fetch payments for orders
+      const orderIds = (ordersData || []).map(o => o.id);
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('order_id, amount_usd')
+        .in('order_id', orderIds);
+
+      // Create a map of order_id -> total paid
+      const paymentsByOrder = new Map<string, number>();
+      (paymentsData || []).forEach(payment => {
+        const current = paymentsByOrder.get(payment.order_id) || 0;
+        paymentsByOrder.set(payment.order_id, current + Number(payment.amount_usd || 0));
+      });
+
       const { data: expensesData } = await supabase
         .from('expenses')
         .select('*')
@@ -163,10 +183,13 @@ export function ProfitReport() {
           dataByPeriod.set(periodKey, {
             period: periodKey,
             total_revenue: 0,
+            cash_collected: 0,
             total_cost: 0,
             gross_profit: 0,
+            cash_profit: 0,
             total_expenses: 0,
             net_profit: 0,
+            cash_net_profit: 0,
             gross_margin: 0,
             net_margin: 0,
             total_orders: 0,
@@ -174,9 +197,14 @@ export function ProfitReport() {
         }
 
         const data = dataByPeriod.get(periodKey)!;
+        const paidAmount = paymentsByOrder.get(order.id) || 0;
+        const costForPaidPortion = Number(order.total_cost_usd || 0) * (paidAmount / Number(order.final_total_usd || 1));
+
         data.total_revenue += Number(order.final_total_usd || 0);
+        data.cash_collected += paidAmount;
         data.total_cost += Number(order.total_cost_usd || 0);
         data.gross_profit += Number(order.total_profit_usd || 0);
+        data.cash_profit += (paidAmount - costForPaidPortion);
         data.total_orders += 1;
       });
 
@@ -196,10 +224,13 @@ export function ProfitReport() {
           dataByPeriod.set(periodKey, {
             period: periodKey,
             total_revenue: 0,
+            cash_collected: 0,
             total_cost: 0,
             gross_profit: 0,
+            cash_profit: 0,
             total_expenses: 0,
             net_profit: 0,
+            cash_net_profit: 0,
             gross_margin: 0,
             net_margin: 0,
             total_orders: 0,
@@ -212,6 +243,7 @@ export function ProfitReport() {
 
       dataByPeriod.forEach(data => {
         data.net_profit = data.gross_profit - data.total_expenses;
+        data.cash_net_profit = data.cash_profit - data.total_expenses;
         data.gross_margin = data.total_revenue > 0 ? (data.gross_profit / data.total_revenue) * 100 : 0;
         data.net_margin = data.total_revenue > 0 ? (data.net_profit / data.total_revenue) * 100 : 0;
       });
@@ -221,17 +253,23 @@ export function ProfitReport() {
 
       const totals = reportData.reduce((acc, r) => ({
         total_revenue: acc.total_revenue + r.total_revenue,
+        cash_collected: acc.cash_collected + r.cash_collected,
         total_cost: acc.total_cost + r.total_cost,
         gross_profit: acc.gross_profit + r.gross_profit,
+        cash_profit: acc.cash_profit + r.cash_profit,
         total_expenses: acc.total_expenses + r.total_expenses,
         net_profit: acc.net_profit + r.net_profit,
+        cash_net_profit: acc.cash_net_profit + r.cash_net_profit,
         total_orders: acc.total_orders + r.total_orders,
       }), {
         total_revenue: 0,
+        cash_collected: 0,
         total_cost: 0,
         gross_profit: 0,
+        cash_profit: 0,
         total_expenses: 0,
         net_profit: 0,
+        cash_net_profit: 0,
         total_orders: 0,
       });
 
@@ -257,17 +295,18 @@ export function ProfitReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Period', 'Orders', 'Revenue', 'Cost', 'Gross Profit', 'Expenses', 'Net Profit', 'Gross Margin', 'Net Margin'];
+    const headers = ['Period', 'Orders', 'Total Revenue', 'Cash Collected', 'Cost', 'Total Profit', 'Cash Profit', 'Expenses', 'Net Profit', 'Cash Net Profit'];
     const rows = reports.map(r => [
       formatPeriod(r.period),
       r.total_orders,
       r.total_revenue.toFixed(2),
+      r.cash_collected.toFixed(2),
       r.total_cost.toFixed(2),
       r.gross_profit.toFixed(2),
+      r.cash_profit.toFixed(2),
       r.total_expenses.toFixed(2),
       r.net_profit.toFixed(2),
-      r.gross_margin.toFixed(1) + '%',
-      r.net_margin.toFixed(1) + '%',
+      r.cash_net_profit.toFixed(2),
     ]);
 
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -364,17 +403,53 @@ export function ProfitReport() {
 
       {reports.length > 0 && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign size={18} className="text-blue-600" />
                 <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'داهات' : 'Revenue'}
+                  {language === 'ku' ? 'کۆی داهات' : 'Total Revenue'}
                 </p>
               </div>
               <p className="text-2xl font-bold text-blue-900">{fmt(summary.total_revenue)}</p>
+              <p className="text-xs text-blue-600 mt-1">{language === 'ku' ? 'پارە + پێماوە' : 'Paid + Unpaid'}</p>
             </div>
 
+            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet size={18} className="text-cyan-600" />
+                <p className="text-xs font-medium text-cyan-700 uppercase tracking-wide">
+                  {language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected'}
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-cyan-900">{fmt(summary.cash_collected)}</p>
+              <p className="text-xs text-cyan-600 mt-1">{language === 'ku' ? 'تەنها پارە' : 'Paid Only'}</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={18} className="text-emerald-600" />
+                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
+                  {language === 'ku' ? 'قازانجی کۆ' : 'Total Profit'}
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
+              <p className="text-xs text-emerald-600 mt-1">{language === 'ku' ? 'پێش خەرجی' : 'Before Expenses'}</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4 border border-teal-200">
+              <div className="flex items-center gap-2 mb-2">
+                <ArrowUpDown size={18} className="text-teal-600" />
+                <p className="text-xs font-medium text-teal-700 uppercase tracking-wide">
+                  {language === 'ku' ? 'قازانجی پارە' : 'Cash Profit'}
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-teal-900">{fmt(summary.cash_profit)}</p>
+              <p className="text-xs text-teal-600 mt-1">{language === 'ku' ? 'پێش خەرجی' : 'Before Expenses'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
               <div className="flex items-center gap-2 mb-2">
                 <Wallet size={18} className="text-red-600" />
@@ -383,17 +458,6 @@ export function ProfitReport() {
                 </p>
               </div>
               <p className="text-2xl font-bold text-red-900">{fmt(summary.total_cost)}</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={18} className="text-emerald-600" />
-                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
-              <p className="text-xs text-emerald-600 mt-1">{pct(profitMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
             </div>
 
             <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
@@ -417,14 +481,15 @@ export function ProfitReport() {
               <p className="text-xs text-amber-600 mt-1">{pct(netMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
             </div>
 
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
               <div className="flex items-center gap-2 mb-2">
-                <Users size={18} className="text-gray-600" />
-                <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'داواکاریەکان' : 'Orders'}
+                <TrendingUp size={18} className="text-yellow-600" />
+                <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">
+                  {language === 'ku' ? 'قازانجی پارە دواییە' : 'Cash Net Profit'}
                 </p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{summary.total_orders}</p>
+              <p className="text-2xl font-bold text-yellow-900">{fmt(summary.cash_net_profit)}</p>
+              <p className="text-xs text-yellow-600 mt-1">{language === 'ku' ? 'پارەی ڕاستەقینە' : 'Actual Cash'}</p>
             </div>
           </div>
 
@@ -450,19 +515,28 @@ export function ProfitReport() {
                       {language === 'ku' ? 'داواکاری' : 'Orders'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'داهات' : 'Revenue'}
+                      {language === 'ku' ? 'کۆی داهات' : 'Total Revenue'}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      {language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'تێچوو' : 'Cost'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {language === 'ku' ? 'قازانجی ناوەکی' : 'Gross Profit'}
+                      {language === 'ku' ? 'قازانجی کۆ' : 'Total Profit'}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      {language === 'ku' ? 'قازانجی پارە' : 'Cash Profit'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'خەرجی' : 'Expenses'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      {language === 'ku' ? 'قازانجی پارە دواییە' : 'Cash Net Profit'}
                     </th>
                   </tr>
                 </thead>
@@ -478,19 +552,26 @@ export function ProfitReport() {
                       <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
                         {fmt(report.total_revenue)}
                       </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-cyan-700">
+                        {fmt(report.cash_collected)}
+                      </td>
                       <td className="px-4 py-3 text-sm text-right font-semibold text-red-700">
                         {fmt(report.total_cost)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="text-sm font-semibold text-emerald-700">{fmt(report.gross_profit)}</div>
-                        <div className="text-xs text-emerald-600">{pct(report.gross_margin)}</div>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-emerald-700">
+                        {fmt(report.gross_profit)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-teal-700">
+                        {fmt(report.cash_profit)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right font-semibold text-orange-700">
                         {fmt(report.total_expenses)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="text-sm font-semibold text-amber-700">{fmt(report.net_profit)}</div>
-                        <div className="text-xs text-amber-600">{pct(report.net_margin)}</div>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-amber-700">
+                        {fmt(report.net_profit)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-yellow-700">
+                        {fmt(report.cash_net_profit)}
                       </td>
                     </tr>
                   ))}
