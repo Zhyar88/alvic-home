@@ -1,8 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Import routes
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env from server directory FIRST before importing anything that uses DB
+dotenv.config({ path: join(__dirname, '../.env') });
+
+// Import routes (these may import database.ts which needs env loaded)
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import customersRoutes from './routes/customers.js';
@@ -15,8 +23,6 @@ import lockSessionsRoutes from './routes/lock-sessions.js';
 import reportsRoutes from './routes/reports.js';
 import auditRoutes from './routes/audit.js';
 import databaseRoutes from './routes/database.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
