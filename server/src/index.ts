@@ -14,6 +14,7 @@ import exchangeRatesRoutes from './routes/exchange-rates.js';
 import lockSessionsRoutes from './routes/lock-sessions.js';
 import reportsRoutes from './routes/reports.js';
 import auditRoutes from './routes/audit.js';
+import databaseRoutes from './routes/database.js';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use('/api/exchange-rates', exchangeRatesRoutes);
 app.use('/api/lock-sessions', lockSessionsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/db', databaseRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

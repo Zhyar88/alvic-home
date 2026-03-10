@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import type { ExchangeRate } from '../types';
+import { supabase } from '../lib/database';
 
 export function ExchangeRates() {
   const { t } = useLanguage();

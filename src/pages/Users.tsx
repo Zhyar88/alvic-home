@@ -8,6 +8,7 @@ import { BilingualInput } from '../components/ui/BilingualInput';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import type { UserProfile, Role } from '../types';
+import { supabase } from '../lib/database';
 
 const SYSTEM_ROLES = ['administrator', 'admin', 'employee'];
 

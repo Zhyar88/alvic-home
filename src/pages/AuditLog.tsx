@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Pagination } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
 import type { AuditLog as AuditLogType } from '../types';
+import { supabase } from '../lib/database';
 
 const PAGE_SIZE = 25;
 

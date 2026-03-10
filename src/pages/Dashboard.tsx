@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Badge, OrderStatusBadge } from '../components/ui/Badge';
 import type { Order } from '../types';
+import { supabase } from '../lib/database';
 
 interface Stats {
   totalOrders: number;

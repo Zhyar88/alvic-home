@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { Table, Pagination } from '../components/ui/Table';
 import type { Customer, CustomerDocument, DocumentType } from '../types';
+import { supabase } from '../lib/database';
 
 const PAGE_SIZE = 15;
 

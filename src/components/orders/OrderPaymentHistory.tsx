@@ -3,6 +3,7 @@ import { X, CreditCard, Clock, CheckCircle, AlertTriangle, TrendingUp, DollarSig
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Badge, InstallmentStatusBadge, OrderStatusBadge } from '../ui/Badge';
 import type { Order, Payment, InstallmentEntry } from '../../types';
+import { supabase } from '../../lib/database';
 
 interface Props {
   order: Order;

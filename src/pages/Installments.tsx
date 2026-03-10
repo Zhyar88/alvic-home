@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal';
 import { Badge, InstallmentStatusBadge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Table';
 import type { InstallmentEntry, Order, Currency } from '../types';
+import { supabase } from '../lib/database';
 
 const PAGE_SIZE = 20;
 

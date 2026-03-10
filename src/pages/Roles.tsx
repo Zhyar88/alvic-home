@@ -8,6 +8,7 @@ import { BilingualInput } from '../components/ui/BilingualInput';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import type { Role } from '../types';
+import { supabase } from '../lib/database';
 
 const MODULES = [
   { key: 'orders', label: 'Orders' },

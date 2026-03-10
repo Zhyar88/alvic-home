@@ -11,6 +11,7 @@ import { Pagination } from '../components/ui/Table';
 import { OrderPaymentHistory } from '../components/orders/OrderPaymentHistory';
 import { OrderContract } from '../components/orders/OrderContract';
 import type { Order, Customer, UserProfile, OrderItem, ProductType } from '../types';
+import { supabase } from '../lib/database';
 
 type SortField = 'order_number' | 'customer' | 'status' | 'sale_type' | 'final_total_usd' | 'balance_due_usd' | 'created_at';
 type SortDir = 'asc' | 'desc';
