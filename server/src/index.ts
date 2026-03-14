@@ -67,10 +67,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
-});
+// local
+// app.listen(PORT, () => {
+//   console.log(`🚀 Server is running on http://localhost:${PORT}`);
+//   console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
+// });
 
+// server
+app.listen(3000, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`📊 API endpoints available at http://0.0.0.0:${PORT}/api`);
+});
 export default app;
