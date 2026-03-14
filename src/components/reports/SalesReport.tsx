@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState, useEffect } from 'react';
 import { Receipt, Filter, Download, Users, DollarSign, TrendingUp, Search, ArrowUpDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -115,20 +116,7 @@ export function SalesReport() {
     try {
       let query = supabase
         .from('orders')
-        .select(`
-          id,
-          order_number,
-          created_at,
-          sale_type,
-          status,
-          final_total_usd,
-          total_paid_usd,
-          balance_due_usd,
-          customers (
-            full_name_en,
-            full_name_ku
-          )
-        `)
+        .select('id,order_number,created_at,sale_type,status,final_total_usd,total_paid_usd,balance_due_usd,customer:customers(full_name_en,full_name_ku)')
         .neq('status', 'draft');
 
       if (dateFrom) {
@@ -152,8 +140,8 @@ export function SalesReport() {
         id: order.id,
         order_number: order.order_number,
         created_at: order.created_at,
-        customer_name_en: order.customers?.full_name_en || '',
-        customer_name_ku: order.customers?.full_name_ku || '',
+        customer_name_en: order.customer?.full_name_en || '',
+        customer_name_ku: order.customer?.full_name_ku || '',
         sale_type: order.sale_type,
         status: order.status,
         final_total_usd: order.final_total_usd,

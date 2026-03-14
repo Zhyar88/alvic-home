@@ -47,6 +47,7 @@ export function ExchangeRates() {
       notes_ku: formData.notes_ku,
       created_at: new Date().toISOString(),
     }]);
+    
 
     await supabase.from('audit_logs').insert([{
       user_id: profile?.id,
@@ -67,7 +68,19 @@ export function ExchangeRates() {
   };
 
   const fmtIQD = (n: number) => `${Number(n).toLocaleString()} IQD`;
-
+    const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes('T')) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
   return (
     <div className="p-4 lg:p-6 space-y-5">
       {latestRate && (
@@ -83,7 +96,7 @@ export function ExchangeRates() {
               </div>
             </div>
             <p className="text-xs text-gray-400">$1 USD = {fmtIQD(latestRate.rate_cash)}</p>
-            <p className="text-xs text-gray-400 mt-1">Effective: {latestRate.effective_date}</p>
+            <p className="text-xs text-gray-400 mt-1">Effective: {fmtDate(latestRate.effective_date)}</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
@@ -96,7 +109,7 @@ export function ExchangeRates() {
               </div>
             </div>
             <p className="text-xs text-gray-400">$1 USD = {fmtIQD(latestRate.rate_installment)}</p>
-            <p className="text-xs text-gray-400 mt-1">Effective: {latestRate.effective_date}</p>
+            <p className="text-xs text-gray-400 mt-1">Effective: {fmtDate(latestRate.effective_date)}</p>
           </div>
         </div>
       )}
@@ -120,7 +133,7 @@ export function ExchangeRates() {
               <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Loading...</td></tr>
             ) : rates.map((rate, idx) => (
               <tr key={rate.id} className={`hover:bg-amber-50/20 transition-colors ${idx === 0 ? 'bg-amber-50/40' : ''}`}>
-                <td className="px-4 py-3 font-semibold text-gray-900">{rate.effective_date}</td>
+                <td className="px-4 py-3 font-semibold text-gray-900">{fmtDate(latestRate.effective_date)}</td>
                 <td className="px-4 py-3 font-bold text-amber-700">{fmtIQD(rate.rate_cash)}</td>
                 <td className="px-4 py-3 font-bold text-emerald-700">{fmtIQD(rate.rate_installment)}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{rate.set_by || 'System'}</td>

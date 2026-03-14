@@ -293,7 +293,8 @@ export function Lock() {
 
   const today = new Date().toISOString().split('T')[0];
   const todaySession = sessions.find(s => s.session_date === today);
-  const canOpenToday = !todaySession;
+  const todayOpenSession = sessions.find(s => s.session_date === today && s.status === 'open');
+  const canOpenToday = !todayOpenSession;
 
   const closedSessions = sessions.filter(s => s.status === 'closed');
 
@@ -420,7 +421,14 @@ export function Lock() {
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-400 mb-2">{t('todaySessionClosed')}</p>
+                <>
+                  <p className="text-sm text-gray-400 mb-2">{t('todaySessionClosed')}</p>
+                  {canCreate && (
+                    <Button onClick={() => setShowOpenModal(true)} icon={<Unlock size={16} />} className="mt-4">
+                      {t('openSession')}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}

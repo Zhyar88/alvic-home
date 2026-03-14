@@ -105,6 +105,20 @@ export function Orders() {
     notes_en: '',
     notes_ku: '',
   });
+  const [depositRates, setDepositRates] = useState({ cash: 0.6, installment: 0.5 });
+
+  useEffect(() => {
+    const fetchRates = async () => {
+      const { data } = await supabase.from('settings').select('key,value');
+      const rates = { cash: 0.6, installment: 0.5 };
+      (data || []).forEach((s: any) => {
+        if (s.key === 'deposit_rate_cash') rates.cash = Number(s.value);
+        if (s.key === 'deposit_rate_installment') rates.installment = Number(s.value);
+      });
+      setDepositRates(rates);
+    };
+    fetchRates();
+  }, []);
   const [items, setItems] = useState<Partial<OrderItem>[]>([]);
   const [newStatus, setNewStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
@@ -130,7 +144,7 @@ export function Orders() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('orders').select('*, customer:customers(full_name_en, full_name_ku)', { count: 'exact' });
+    let query = supabase.from('orders', { count: 'exact' }).select('*, customer:customers(full_name_en, full_name_ku)');
     if (search) query = query.or(`order_number.ilike.%${search}%`);
     if (filterStatus !== 'all') query = query.eq('status', filterStatus);
     if (filterType !== 'all') query = query.eq('sale_type', filterType);
@@ -190,7 +204,7 @@ export function Orders() {
       total_amount_usd: total,
       discount_amount_usd: discountAmt,
       final_total_usd: finalTotal,
-      deposit_required_usd: finalTotal * 0.5,
+      deposit_required_usd: finalTotal * (formData.sale_type === 'cash' ? depositRates.cash : depositRates.installment),
       balance_due_usd: finalTotal,
       total_paid_usd: 0,
       deposit_paid_usd: 0,
@@ -258,6 +272,7 @@ export function Orders() {
 
   const handleSave = async () => {
     if (!formData.customer_id) return;
+    if (saving) return;
     setSaving(true);
 
     const dp = Math.min(Number(formData.discount_percent || 0), 5);
@@ -265,11 +280,20 @@ export function Orders() {
 
     const orderNum = selectedOrder?.order_number || await generateOrderNumber();
 
+   let calculatedMonths = Number(formData.installment_months || 6);
+    if (formData.sale_type === 'installment' && formData.installment_mode === 'by_amount') {
+      const depositReq = Number(totals.deposit_required_usd || 0);
+      const remainingForInstallments = Math.max(0, (totals.final_total_usd || 0) - depositReq);
+      const monthlyAmt = Number(formData.installment_monthly_amount || 0);
+      if (monthlyAmt > 0) calculatedMonths = Math.max(1, Math.round(remainingForInstallments / monthlyAmt));
+    }
+
     const payload = {
       ...formData,
       ...totals,
       order_number: orderNum,
       discount_percent: dp,
+      installment_months: calculatedMonths,
       created_by: selectedOrder ? formData.created_by : profile?.id,
       assigned_to: formData.assigned_to || profile?.id,
       updated_at: new Date().toISOString(),
@@ -280,11 +304,21 @@ export function Orders() {
       await supabase.from('orders').update(payload).eq('id', selectedOrder.id);
       await supabase.from('order_items').delete().eq('order_id', selectedOrder.id);
     } else {
-      const { data } = await supabase.from('orders').insert([{ ...payload, created_at: new Date().toISOString() }]).select('id').single();
-      orderId = data?.id;
+      const { data, error: insertErr } = await supabase.from('orders').insert([{ ...payload, created_at: new Date().toISOString() }]);
+      console.log('insert result:', JSON.stringify(data), 'error:', insertErr);
+      const insertedRow = Array.isArray(data) ? data[0] : data;
+      orderId = insertedRow?.id;
+      console.log('orderId extracted:', orderId);
+      if (!orderId) {
+        // fallback: fetch the order by order_number
+        const { data: fetchedRows } = await supabase.from('orders').select('id').eq('order_number', orderNum);
+        const fetched = Array.isArray(fetchedRows) ? fetchedRows[0] : fetchedRows;
+        orderId = fetched?.id;
+        console.log('orderId from fallback fetch:', orderId);
+      }
     }
 
-    if (orderId && items.length > 0) {
+    if (orderId &&  items.length > 0) {
       const itemRows = items.map((item, i) => ({
         ...item,
         order_id: orderId,
@@ -296,8 +330,11 @@ export function Orders() {
     }
 
     if (orderId && formData.sale_type === 'installment') {
+      
       const mode = formData.installment_mode || 'by_months';
-
+console.log('installment mode:', mode);
+console.log('installment_monthly_amount:', formData.installment_monthly_amount);
+console.log('installment_months:', formData.installment_months);
       if (selectedOrder) {
         const { data: existingEntries } = await supabase
           .from('installment_entries')
@@ -321,10 +358,11 @@ export function Orders() {
         if (remainingAfterPayments > 0) {
           if (mode === 'by_months') {
             const months = Number(formData.installment_months || 6);
-            if (months >= 1) await generateInstallmentSchedule(orderId, totals, months, totalAlreadyPaid === 0 ? undefined : totalAlreadyPaid);
+            if (months >= 1) await generateInstallmentSchedule(orderId, totals, months, Number(totals.deposit_required_usd || 0));
           } else {
             const monthlyAmt = Number(formData.installment_monthly_amount || 0);
             if (monthlyAmt > 0) {
+              
               const months = Math.max(1, Math.round(remainingAfterPayments / monthlyAmt));
               await generateInstallmentSchedule(orderId, totals, months, totalAlreadyPaid > 0 ? totalAlreadyPaid : 0, monthlyAmt);
             }
@@ -337,9 +375,10 @@ export function Orders() {
         } else {
           const monthlyAmt = Number(formData.installment_monthly_amount || 0);
           if (monthlyAmt > 0) {
-            const fullTotal = totals.final_total_usd || 0;
-            const months = Math.max(1, Math.round(fullTotal / monthlyAmt));
-            await generateInstallmentSchedule(orderId, totals, months, 0, monthlyAmt);
+            const depositReq = Number(totals.deposit_required_usd || 0);
+            const remainingForInstallments = Math.max(0, (totals.final_total_usd || 0) - depositReq);
+            const months = Math.max(1, Math.round(remainingForInstallments / monthlyAmt));
+            await generateInstallmentSchedule(orderId, totals, months, depositReq, monthlyAmt);
           }
         }
       }
@@ -354,7 +393,7 @@ export function Orders() {
     if (isNew && orderId) {
       const { data: fullOrder } = await supabase
         .from('orders')
-        .select('*, customer:customers(*)')
+        .select('*, customer:customers(full_name_en, full_name_ku, phone, address_en, address_ku)')
         .eq('id', orderId)
         .maybeSingle();
       const { data: orderItems } = await supabase
@@ -371,7 +410,8 @@ export function Orders() {
 
   const generateInstallmentSchedule = async (orderId: string, totals: Partial<Order>, months: number, depositPaidUSD?: number, fixedMonthlyAmount?: number) => {
     const finalTotal = totals.final_total_usd || 0;
-    const depositUsed = depositPaidUSD !== undefined ? depositPaidUSD : finalTotal * 0.5;
+    const depositRequired = Number(totals.deposit_required_usd || 0);
+    const depositUsed = depositPaidUSD !== undefined ? depositPaidUSD : (depositRequired > 0 ? depositRequired : finalTotal * 0.5);
     const remaining = Math.max(0, finalTotal - depositUsed);
     const baseAmount = fixedMonthlyAmount !== undefined
       ? Math.floor(fixedMonthlyAmount * 100) / 100
@@ -384,7 +424,7 @@ export function Orders() {
     startDate.setMonth(startDate.getMonth() + 1);
     startDate.setDate(1);
 
-    const { data: schedData } = await supabase.from('installment_schedules').insert([{
+    await supabase.from('installment_schedules').insert([{
       order_id: orderId,
       total_amount_usd: finalTotal,
       deposit_usd: depositUsed,
@@ -395,8 +435,12 @@ export function Orders() {
       original_snapshot: {},
       created_by: profile?.id,
       created_at: new Date().toISOString(),
-    }]).select('id').single();
+    }]);
 
+    // Fetch the schedule id separately
+    const { data: schedRows } = await supabase.from('installment_schedules').select('id').eq('order_id', orderId);
+    const schedData = Array.isArray(schedRows) ? schedRows[0] : schedRows;
+    console.log('schedData:', schedData);
     if (schedData?.id) {
       const entries = Array.from({ length: months }, (_, i) => {
         const d = new Date(startDate);
@@ -446,7 +490,20 @@ export function Orders() {
   };
 
   const handleDelete = async (order: Order) => {
-    if (!confirm(t('confirmDelete'))) return;
+  if (!confirm(t('confirmDelete'))) return;
+    // Delete related records first
+    await supabase.from('payment_installment_links').delete().eq('payment_id', order.id);
+    const { data: payments } = await supabase.from('payments').select('id').eq('order_id', order.id);
+    if (payments && payments.length > 0) {
+      const paymentIds = (payments as { id: string }[]).map(p => p.id);
+      await supabase.from('payment_installment_links').delete().in('payment_id', paymentIds);
+    }
+    await supabase.from('payments').delete().eq('order_id', order.id);
+    await supabase.from('installment_entries').delete().eq('order_id', order.id);
+    await supabase.from('installment_schedules').delete().eq('order_id', order.id);
+    await supabase.from('order_status_history').delete().eq('order_id', order.id);
+    await supabase.from('lock_transactions').delete().eq('reference_id', order.id);
+    await supabase.from('order_items').delete().eq('order_id', order.id);
     await supabase.from('orders').delete().eq('id', order.id);
     fetchOrders();
   };
@@ -474,12 +531,12 @@ export function Orders() {
     if (mode === 'by_months') {
       months = Number(formData.installment_months || 6);
       if (months < 1) return null;
-      remaining = Math.max(0, finalTotal * 0.5);
+      remaining = Math.max(0, finalTotal * depositRates.installment);
       baseAmount = Math.floor((remaining / months) * 100) / 100;
     } else {
       const monthlyAmt = Number(formData.installment_monthly_amount || 0);
       if (monthlyAmt <= 0) return null;
-      remaining = finalTotal;
+      remaining = Math.max(0, finalTotal * depositRates.installment);
       months = Math.max(1, Math.round(remaining / monthlyAmt));
       baseAmount = Math.floor(monthlyAmt * 100) / 100;
     }
@@ -577,7 +634,7 @@ export function Orders() {
                     </button>
                     <button
                       onClick={async () => {
-                        const { data: fullOrder } = await supabase.from('orders').select('*, customer:customers(*)').eq('id', order.id).maybeSingle();
+                        const { data: fullOrder } = await supabase.from('orders').select('*, customer:customers(full_name_en, full_name_ku, phone, address_en, address_ku, national_id_number)').eq('id', order.id).maybeSingle();
                         const { data: itemData } = await supabase.from('order_items').select('*').eq('order_id', order.id).order('sort_order');
                         if (fullOrder) {
                           setContractOrder({ ...fullOrder as Order, items: (itemData || []) as OrderItem[] });

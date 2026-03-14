@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { LockSession } from '../types';
+import { supabase } from '../lib/database';
 
 interface CashRegisterContextType {
   activeSession: LockSession | null;

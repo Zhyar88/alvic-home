@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState, useEffect } from 'react';
 import { Receipt, Filter, Download, DollarSign, TrendingDown, ArrowUpDown, PieChart } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';

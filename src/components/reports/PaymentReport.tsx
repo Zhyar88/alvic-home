@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Filter, Download, DollarSign, ArrowUpDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -109,44 +110,42 @@ export function PaymentReport() {
     try {
       const { data } = await supabase
         .from('payments')
-        .select(`
-          id,
-          payment_number,
-          payment_date,
-          payment_type,
-          currency,
-          amount_in_currency,
-          amount_usd,
-          orders!inner (
-            id,
-            order_number,
-            customer_id,
-            customers (
-              id,
-              full_name_en,
-              full_name_ku
-            )
-          )
-        `)
+        .select('id,payment_number,payment_date,payment_type,currency,amount_in_currency,amount_usd,order_id,is_reversed')
         .gte('payment_date', dateFrom)
         .lte('payment_date', dateTo)
         .eq('is_reversed', false)
         .order('payment_date', { ascending: false });
 
-      const paymentData = (data || []).map(payment => ({
-        id: payment.id,
-        payment_number: payment.payment_number,
-        payment_date: payment.payment_date,
-        payment_type: payment.payment_type,
-        order_id: payment.orders?.id || '',
-        order_number: payment.orders?.order_number || '',
-        customer_id: payment.orders?.customers?.id || '',
-        customer_name_en: payment.orders?.customers?.full_name_en || '',
-        customer_name_ku: payment.orders?.customers?.full_name_ku || '',
-        currency: payment.currency,
-        amount_in_currency: payment.amount_in_currency,
-        amount_usd: payment.amount_usd,
-      }));
+      const payments = data || [];
+
+      // Fetch orders separately
+      const orderIds = [...new Set(payments.map((p: any) => p.order_id).filter(Boolean))];
+      let ordersMap: Record<string, any> = {};
+      if (orderIds.length > 0) {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('id,order_number,customer_id,customer:customers(id,full_name_en,full_name_ku)')
+          .in('id', orderIds);
+        (ordersData || []).forEach((o: any) => { ordersMap[o.id] = o; });
+      }
+
+      const paymentData = payments.map((payment: any) => {
+        const order = ordersMap[payment.order_id] || {};
+        return {
+          id: payment.id,
+          payment_number: payment.payment_number,
+          payment_date: payment.payment_date,
+          payment_type: payment.payment_type,
+          order_id: order.id || '',
+          order_number: order.order_number || '',
+          customer_id: order.customer?.id || '',
+          customer_name_en: order.customer?.full_name_en || '',
+          customer_name_ku: order.customer?.full_name_ku || '',
+          currency: payment.currency,
+          amount_in_currency: payment.amount_in_currency,
+          amount_usd: payment.amount_usd,
+        };
+      });
 
       setPayments(paymentData);
       setFilteredPayments(paymentData);

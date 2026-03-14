@@ -55,7 +55,7 @@ export function Expenses() {
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('expenses').select('*, category:expense_categories(name_en,name_ku)', { count: 'exact' });
+    let query = supabase.from('expenses', { count: 'exact' }).select('*, category:expense_categories(name_en,name_ku)');
     if (search) query = query.or(`description_en.ilike.%${search}%,description_ku.ilike.%${search}%`);
     if (filterCat !== 'all') query = query.eq('category_id', filterCat);
     if (filterDate) query = query.eq('expense_date', filterDate);
@@ -77,11 +77,26 @@ export function Expenses() {
   };
 
   const handleSave = async () => {
-    if (!formData.description_en && !formData.description_ku) return;
-    if (!selectedExpense && !activeSession) return;
+    console.log('handleSave called');
+  console.log('description_en:', formData.description_en);
+  console.log('description_ku:', formData.description_ku);
+  console.log('activeSession:', activeSession);
+  console.log('selectedExpense:', selectedExpense);
+  if (!formData.description_en && !formData.description_ku) {
+    console.log('BLOCKED: no description');
+    return;
+  }
+  if (!selectedExpense && !activeSession) {
+    console.log('BLOCKED: no session and no selected expense');
+    return;
+  }
+    if (!selectedExpense && !activeSession) return;  // ← THIS LINE
     setSaving(true);
-    const cat = categories.find(c => c.id === formData.category_id);
-    const amtUSD = getAmountUSD();
+console.log('past checks, saving...');
+const cat = categories.find(c => c.id === formData.category_id);
+const amtUSD = getAmountUSD();
+console.log('amtUSD:', amtUSD);
+console.log('amount_in_currency:', formData.amount_in_currency);
     const expNum = `EXP-${Date.now()}`;
     const payload = {
       expense_number: selectedExpense?.expense_number || expNum,
@@ -105,13 +120,15 @@ export function Expenses() {
     if (selectedExpense) {
       await supabase.from('expenses').update(payload).eq('id', selectedExpense.id);
     } else {
-      const { data: expData } = await supabase
-        .from('expenses')
-        .insert([{ ...payload, created_at: new Date().toISOString() }])
-        .select('id')
-        .single();
+      console.log('inserting expense payload:', payload);
+const { data: insertedRows } = await supabase
+  .from('expenses')
+  .insert([{ ...payload, created_at: new Date().toISOString() }]);
 
-      if (activeSession && expData?.id && amtUSD > 0) {
+const expData = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+console.log('insert result:', expData);
+
+if (activeSession && expData?.id && amtUSD > 0) {
         await logTransaction({
           session_id: activeSession.id,
           transaction_type: 'expense',
@@ -164,7 +181,19 @@ export function Expenses() {
 
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`;
   const totalAmount = expenses.reduce((s, e) => s + e.amount_usd, 0);
-
+const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes('T')) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
   return (
     <div className="p-4 lg:p-6 space-y-5">
       {!activeSession && (
@@ -235,7 +264,7 @@ export function Expenses() {
                 </td>
                 <td className="px-4 py-3 font-bold text-red-700">{fmt(exp.amount_usd)}</td>
                 <td className="px-4 py-3 text-xs">{exp.currency === 'IQD' ? `${Number(exp.amount_in_currency).toLocaleString()} IQD` : fmt(exp.amount_in_currency)}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{exp.expense_date}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{fmtDate(exp.expense_date)}</td>
                 <td className="px-4 py-3 font-mono text-xs text-emerald-700">{exp.linked_order_id ? orders.find(o => o.id === exp.linked_order_id)?.order_number || '—' : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">

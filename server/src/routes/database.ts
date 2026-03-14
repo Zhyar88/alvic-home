@@ -6,13 +6,10 @@ const router = Router();
 router.get('/:table', async (req: Request, res: Response) => {
   try {
     const { table } = req.params;
+    console.log('TABLE:', table);
+console.log('QUERY:', req.query);
+console.log('BUILT SQL will be logged below');
     const { select, count, limit, offset, or } = req.query;
-
-    // Sanitize table name (only allow alphanumeric and underscore)
-    const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');
-    if (sanitizedTable !== table) {
-      return res.status(400).json({ error: 'Invalid table name' });
-    }
 
     const filters: Array<{ column: string; op: string; value: any }> = [];
     const orders: Array<{ column: string; dir: string }> = [];
@@ -31,18 +28,72 @@ router.get('/:table', async (req: Request, res: Response) => {
       }
     });
 
-    // Sanitize column names in select
-    let columns = '*';
-    if (select && select !== '*') {
-      const cols = String(select).split(',').map(c => c.trim());
-      const sanitizedCols = cols.filter(c => /^[a-zA-Z0-9_]+$/.test(c));
-      if (sanitizedCols.length !== cols.length) {
-        return res.status(400).json({ error: 'Invalid column names' });
-      }
-      columns = sanitizedCols.join(', ');
-    }
+    // Parse PostgREST-style join syntax: alias:join_table(col1,col2)
+    // e.g. "*, category:expense_categories(name_en,name_ku)"
+    const joins: Array<{ alias: string; joinTable: string; cols: string[] }> = [];
+let cleanSelect = `${table}.*`;
 
-    let sql = `SELECT ${columns} FROM ${sanitizedTable}`;
+if (select && String(select) !== '*') {
+  const selectStr = String(select);
+  
+  // Split only on commas that are NOT inside parentheses
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of selectStr) {
+    if (char === '(') depth++;
+    else if (char === ')') depth--;
+    else if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+
+  const plainCols: string[] = [];
+
+  parts.forEach(part => {
+    const joinMatch = part.match(/^(\w+):(\w+)\((.+)\)$/);
+    if (joinMatch) {
+      joins.push({
+        alias: joinMatch[1],
+        joinTable: joinMatch[2],
+        cols: joinMatch[3].split(',').map(c => c.trim()),
+      });
+    } else if (part !== '*') {
+      plainCols.push(`${table}.${part}`);
+    }
+  });
+
+  const selectParts: string[] = plainCols.length > 0 ? plainCols : [`${table}.*`];
+  joins.forEach(j => {
+    j.cols.forEach(col => {
+      selectParts.push(`${j.joinTable}.${col} AS ${j.alias}__${col}`);
+    });
+  });
+  cleanSelect = selectParts.join(', ');
+}
+
+    let sql = `SELECT ${cleanSelect} FROM ${table}`;
+
+    // Add LEFT JOINs — need foreign key mapping
+    const joinKeyMap: Record<string, { fk: string; pk: string }> = {
+      expense_categories: { fk: `${table}.category_id`, pk: 'expense_categories.id' },
+      customers:          { fk: `${table}.customer_id`, pk: 'customers.id' },
+      user_profiles:      { fk: `${table}.user_id`,     pk: 'user_profiles.user_id' },
+      orders:             { fk: `${table}.order_id`,    pk: 'orders.id' },
+      installment_entries: { fk: `${table}.installment_entry_id`, pk: 'installment_entries.id' },
+    };
+
+    joins.forEach(j => {
+      const key = joinKeyMap[j.joinTable];
+      if (key) {
+        sql += ` LEFT JOIN ${j.joinTable} ON ${key.fk} = ${key.pk}`;
+      }
+    });
+
     const values: any[] = [];
     let paramIndex = 1;
 
@@ -50,84 +101,79 @@ router.get('/:table', async (req: Request, res: Response) => {
       const orConditions = String(or).split(',').map(cond => {
         const match = cond.match(/(\w+)\.ilike\.%(.+)%/);
         if (match) {
-          const column = match[1];
-          const searchValue = match[2];
-          // Sanitize column name
-          if (!/^[a-zA-Z0-9_]+$/.test(column)) return '';
-          values.push(`%${searchValue}%`);
-          return `${column} ILIKE $${paramIndex++}`;
+          values.push(`%${match[2]}%`);
+          return `${table}.${match[1]} ILIKE $${paramIndex++}`;
         }
         return '';
       }).filter(Boolean);
-
       if (orConditions.length > 0) {
         sql += ` WHERE (${orConditions.join(' OR ')})`;
       }
     } else if (filters.length > 0) {
       const conditions = filters.map(f => {
-        // Sanitize column name
-        if (!/^[a-zA-Z0-9_]+$/.test(f.column)) return '';
-
         if (f.op === 'eq') {
           values.push(f.value);
-          return `${f.column} = $${paramIndex++}`;
+          return `${table}.${f.column} = $${paramIndex++}`;
         } else if (f.op === 'neq') {
           values.push(f.value);
-          return `${f.column} != $${paramIndex++}`;
+          return `${table}.${f.column} != $${paramIndex++}`;
+        } else if (f.op === 'gte') {
+          values.push(f.value);
+          return `${table}.${f.column} >= $${paramIndex++}`;
+        } else if (f.op === 'lte') {
+          values.push(f.value);
+          return `${table}.${f.column} <= $${paramIndex++}`;
         } else if (f.op === 'in') {
           const vals = JSON.parse(f.value);
           const placeholders = vals.map((v: any) => {
             values.push(v);
             return `$${paramIndex++}`;
           });
-          return `${f.column} IN (${placeholders.join(',')})`;
+          return `${table}.${f.column} IN (${placeholders.join(',')})`;
         }
         return '';
       }).filter(Boolean);
-
       if (conditions.length > 0) {
         sql += ` WHERE ${conditions.join(' AND ')}`;
       }
     }
 
     if (orders.length > 0) {
-      const orderClauses = orders.map(o => {
-        // Sanitize column name and direction
-        if (!/^[a-zA-Z0-9_]+$/.test(o.column)) return '';
-        const dir = o.dir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-        return `${o.column} ${dir}`;
-      }).filter(Boolean);
-
-      if (orderClauses.length > 0) {
-        sql += ` ORDER BY ${orderClauses.join(', ')}`;
-      }
+      sql += ` ORDER BY ${orders.map(o => `${table}.${o.column} ${o.dir.toUpperCase()}`).join(', ')}`;
     }
 
     let totalCount: number | undefined;
     if (count === 'exact') {
-      const countSql = `SELECT COUNT(*) FROM ${sanitizedTable}` +
-        (filters.length > 0 ? ` WHERE ${filters.map((f, i) => `${f.column} ${f.op === 'eq' ? '=' : '!='} $${i + 1}`).join(' AND ')}` : '');
+      const countSql = `SELECT COUNT(*) FROM ${table}` +
+        (filters.length > 0 ? ` WHERE ${filters.map((f, i) => `${table}.${f.column} ${f.op === 'eq' ? '=' : '!='} $${i + 1}`).join(' AND ')}` : '');
       const countResult = await pool.query(countSql, filters.map(f => f.value));
       totalCount = parseInt(countResult.rows[0].count);
     }
 
-    if (limit) {
-      const limitNum = parseInt(String(limit));
-      if (isNaN(limitNum) || limitNum < 0) {
-        return res.status(400).json({ error: 'Invalid limit' });
-      }
-      sql += ` LIMIT ${limitNum}`;
-    }
-    if (offset) {
-      const offsetNum = parseInt(String(offset));
-      if (isNaN(offsetNum) || offsetNum < 0) {
-        return res.status(400).json({ error: 'Invalid offset' });
-      }
-      sql += ` OFFSET ${offsetNum}`;
-    }
+    if (limit) sql += ` LIMIT ${parseInt(String(limit))}`;
+    if (offset) sql += ` OFFSET ${parseInt(String(offset))}`;
 
     const result = await pool.query(sql, values);
-    res.json({ data: result.rows, count: totalCount });
+console.log('FINAL SQL:', sql);
+console.log('VALUES:', values);
+    // Re-nest joined columns back into alias object: { category_name_en, category_name_ku } → { category: { name_en, name_ku } }
+    const rows = result.rows.map(row => {
+      const newRow = { ...row };
+      joins.forEach(j => {
+        const nested: Record<string, any> = {};
+        j.cols.forEach(col => {
+          const key = `${j.alias}__${col}`;
+          if (key in newRow) {
+            nested[col] = newRow[key];
+            delete newRow[key];
+          }
+        });
+        newRow[j.alias] = nested;
+      });
+      return newRow;
+    });
+
+    res.json({ data: rows, count: totalCount });
   } catch (error: any) {
     console.error('Database GET error:', error);
     res.status(500).json({ error: error.message });
@@ -184,6 +230,7 @@ router.patch('/:table', async (req: Request, res: Response) => {
   try {
     const { table } = req.params;
     const { data, filters } = req.body;
+    console.log(`PATCH ${table}:`, JSON.stringify({ data, filters }, null, 2));
 
     // Sanitize table name
     const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, '');

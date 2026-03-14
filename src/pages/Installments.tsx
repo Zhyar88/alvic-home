@@ -72,8 +72,8 @@ export function Installments() {
   const fetchEntries = useCallback(async () => {
     setLoading(true);
 
-    let query = supabase.from('installment_entries')
-      .select('*, order:orders(order_number, sale_type, customer:customers(full_name_en, full_name_ku))', { count: 'exact' });
+    let query = supabase.from('installment_entries', { count: 'exact' })
+  .select('*, order:orders(order_number, sale_type, customer_id)');
 
     if (filterStatus !== 'all') query = query.eq('status', filterStatus);
     if (filterDate) {
@@ -110,6 +110,7 @@ export function Installments() {
       setTotal(count || 0);
     }
 
+    
     if (search) {
       const q = search.toLowerCase();
       allData = allData.filter(e => {
@@ -125,7 +126,7 @@ export function Installments() {
         );
       });
     }
-
+    
     if (sortField === 'order_number') {
       allData.sort((a, b) => {
         const aVal = String((a.order as Record<string, unknown>)?.order_number || '');
@@ -143,7 +144,18 @@ export function Installments() {
         return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       });
     }
-
+    // Fetch customer names separately
+    const customerIds = [...new Set(allData.map(e => (e.order as Record<string, unknown>)?.customer_id as string).filter(Boolean))];
+    if (customerIds.length > 0) {
+      const { data: customers } = await supabase.from('customers').select('id, full_name_en, full_name_ku').in('id', customerIds);
+      const customerMap = new Map((customers || []).map((c: Record<string, string>) => [c.id, c]));
+      allData = allData.map(e => {
+        const order = e.order as Record<string, unknown>;
+        if (!order) return e;
+        const customer = customerMap.get(order.customer_id as string);
+        return { ...e, order: { ...order, customer } };
+      });
+    }
     const today = new Date().toISOString().split('T')[0];
     const overdueIds = allData.filter(e => e.status === 'unpaid' && e.due_date < today).map(e => e.id);
     if (overdueIds.length > 0) {
@@ -313,14 +325,13 @@ export function Installments() {
 
     const totalAllocated = allocations.reduce((s, a) => s + a.allocated, 0);
 
-    const { data: numData } = await supabase.rpc('generate_payment_number').single();
-    const paymentNumber = (numData as string) || `PAY-${Date.now()}`;
+    const paymentNumber = `PAY-${Date.now()}`;
 
     const scopeLabel = payDiscountScope === 'all' ? 'all installments' : 'this installment';
     const discountNote = discountPct > 0 ? ` (${discountPct}% discount on ${scopeLabel})` : '';
     const discountNoteKu = discountPct > 0 ? ` (${discountPct}% داشکاندن)` : '';
 
-    const { data: payData } = await supabase.from('payments').insert([{
+    const { data: payRows } = await supabase.from('payments').insert([{
       order_id: selectedEntry.order_id,
       payment_number: paymentNumber,
       payment_type: 'installment',
@@ -337,7 +348,8 @@ export function Installments() {
       notes_ku: payNotes || `قیست #${selectedEntry.installment_number}${allocations.length > 1 ? ` (+${allocations.length - 1})` : ''}${discountNoteKu}`,
       created_by: profile?.id,
       created_at: new Date().toISOString(),
-    }]).select('id').single();
+    }]);
+    const payData = Array.isArray(payRows) ? payRows[0] : payRows;
 
     if (payData?.id) {
       const links = allocations.map(a => ({
@@ -391,9 +403,9 @@ export function Installments() {
       .single();
 
     if (order) {
-      const newTotalPaid = (order.total_paid_usd || 0) + totalAllocated;
-      const newDiscountTotal = (order.installment_discount_amount_usd || 0) + totalDiscountUSD;
-      const newFinalTotal = Math.max(0, (order.final_total_usd || 0) - totalDiscountUSD);
+      const newTotalPaid = Number(order.total_paid_usd || 0) + totalAllocated;
+      const newDiscountTotal = Number(order.installment_discount_amount_usd || 0) + totalDiscountUSD;
+      const newFinalTotal = Math.max(0, Number(order.final_total_usd || 0) - totalDiscountUSD);
       const newBalance = Math.max(0, newFinalTotal - newTotalPaid);
       await supabase.from('orders').update({
         total_paid_usd: newTotalPaid,
@@ -438,13 +450,17 @@ export function Installments() {
     if (selectedEntries.size === 0) return;
     if (!activeSession) return;
     setSaving(true);
-
+console.log('entriesSelected:', entries.filter(e => selectedEntries.has(e.id)));
     const entriesSelected = entries.filter(e => selectedEntries.has(e.id) && e.status !== 'paid');
-    if (entriesSelected.length === 0) { setSaving(false); return; }
+if (entriesSelected.length === 0) { setSaving(false); return; }
 
-    const discountPct = Math.min(Math.max(Number(multiPayDiscountPercent || 0), 0), 100);
-    const orderId = entriesSelected[0].order_id;
-    const firstEntry = entriesSelected[0];
+const discountPct = Math.min(Math.max(Number(multiPayDiscountPercent || 0), 0), 100);
+const firstEntry = entriesSelected[0];
+if (!firstEntry?.order_id) { setSaving(false); return; }
+const orderId = firstEntry.order_id;
+
+
+    
 
     const { data: allOrderEntriesRaw } = await supabase
       .from('installment_entries')
@@ -471,14 +487,14 @@ export function Installments() {
     const totalUSD = entriesWithDiscount.reduce((s, e) => s + e.effectiveDue, 0);
     const totalInCurrency = multiPayCurrency === 'USD' ? totalUSD : totalUSD * currentRate;
 
-    const { data: numData } = await supabase.rpc('generate_payment_number').single();
-    const paymentNumber = (numData as string) || `PAY-${Date.now()}`;
+    
+    const paymentNumber = `PAY-${Date.now()}`;
 
     const scopeLabel = multiPayDiscountScope === 'all' ? 'all installments' : 'selected installments';
     const discountNote = discountPct > 0 ? ` (${discountPct}% discount on ${scopeLabel})` : '';
     const discountNoteKu = discountPct > 0 ? ` (${discountPct}% داشکاندن)` : '';
 
-    const { data: payData } = await supabase.from('payments').insert([{
+    const { data: payRows } = await supabase.from('payments').insert([{
       order_id: orderId,
       payment_number: paymentNumber,
       payment_type: 'installment',
@@ -489,12 +505,14 @@ export function Installments() {
       discount_percent: discountPct,
       discount_amount_usd: totalDiscountUSD,
       payment_date: multiPayDate,
+      installment_entry_id: firstEntry.id,
       is_reversed: false,
-      notes_en: multiPayNotes || `Multi-installment payment (${entriesWithDiscount.map(e => `#${e.installment_number}`).join(', ')})${discountNote}`,
-      notes_ku: multiPayNotes || `پارەدانی چەند قیست (${entriesWithDiscount.map(e => `#${e.installment_number}`).join(', ')})${discountNoteKu}`,
+      notes_en: multiPayNotes || `Multi-installment (${entriesWithDiscount.map(e => `#${e.installment_number}`).join(', ')})${discountNote}`,
+      notes_ku: multiPayNotes || `چەند قیست (${entriesWithDiscount.map(e => `#${e.installment_number}`).join(', ')})${discountNoteKu}`,
       created_by: profile?.id,
       created_at: new Date().toISOString(),
-    }]).select('id').single();
+    }]);
+    const payData = Array.isArray(payRows) ? payRows[0] : payRows;
 
     if (payData?.id) {
       const links = entriesWithDiscount.map(e => ({
@@ -539,16 +557,16 @@ export function Installments() {
       }
     }
 
-    const { data: order } = await supabase
+    const { data: orderRows } = await supabase
       .from('orders')
       .select('total_paid_usd, final_total_usd, installment_discount_amount_usd')
-      .eq('id', orderId)
-      .single();
+      .eq('id', orderId);
+    const order = Array.isArray(orderRows) ? orderRows[0] : orderRows;
 
     if (order) {
-      const newTotalPaid = (order.total_paid_usd || 0) + totalUSD;
-      const newDiscountTotal = (order.installment_discount_amount_usd || 0) + totalDiscountUSD;
-      const newFinalTotal = Math.max(0, (order.final_total_usd || 0) - totalDiscountUSD);
+      const newTotalPaid = Number(order.total_paid_usd || 0) + totalUSD;
+      const newDiscountTotal = Number(order.installment_discount_amount_usd || 0) + totalDiscountUSD;
+      const newFinalTotal = Math.max(0, Number(order.final_total_usd || 0) - totalDiscountUSD);
       const newBalance = Math.max(0, newFinalTotal - newTotalPaid);
       await supabase.from('orders').update({
         total_paid_usd: newTotalPaid,
@@ -649,13 +667,13 @@ export function Installments() {
   })();
 
   const totalStats = {
-    total: entries.reduce((s, e) => s + e.amount_usd, 0),
-    paid: entries.reduce((s, e) => s + e.paid_amount_usd, 0),
+    total: entries.reduce((s, e) => s + Number(e.amount_usd || 0), 0),
+    paid: entries.reduce((s, e) => s + Number(e.paid_amount_usd || 0), 0),
     overdue: entries.filter(e => e.status === 'overdue').length,
   };
 
   const selectedEntriesData = entries.filter(e => selectedEntries.has(e.id) && e.status !== 'paid');
-  const multiPayTotalUSD = selectedEntriesData.reduce((s, e) => s + (e.amount_usd - e.paid_amount_usd), 0);
+  const multiPayTotalUSD = selectedEntriesData.reduce((s, e) => s + (Number(e.amount_usd || 0) - Number(e.paid_amount_usd || 0)), 0);
   const multiPayTotalIQD = multiPayTotalUSD * currentRate;
 
   const Th = ({ field, label }: { field: SortField; label: string }) => (
@@ -825,8 +843,10 @@ export function Installments() {
             ) : entries.length === 0 ? (
               <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">{t('noData')}</td></tr>
             ) : entries.map(entry => {
+              
               const today = new Date().toISOString().split('T')[0];
               const daysOverdue = entry.status === 'overdue' ? Math.floor((new Date(today).getTime() - new Date(entry.due_date).getTime()) / 86400000) : 0;
+              
               const remaining = entry.amount_usd - entry.paid_amount_usd;
               const isSelected = selectedEntries.has(entry.id);
               return (

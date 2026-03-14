@@ -73,7 +73,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
         const [ordersRes, paymentsRes, installmentsRes] = await Promise.all([
           supabase.from('orders').select('id, status, sale_type, final_total_usd, created_at'),
-          supabase.from('payments').select('amount_usd, payment_date').eq('is_reversed', false),
+          supabase.from('payments').select('amount_usd, payment_date, payment_type').eq('is_reversed', false),
           supabase.from('installment_entries').select('status').in('status', ['unpaid', 'overdue', 'partial']),
         ]);
 
@@ -87,12 +87,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setStats({
           totalOrders: orders.length,
           activeOrders: orders.filter(o => activeStatuses.includes(o.status)).length,
-          totalRevenue: payments.reduce((s, p) => s + (p.amount_usd || 0), 0),
+          totalRevenue: payments.filter(p => p.payment_type !== 'reversal').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
+          todayRevenue: todayPayments.filter(p => p.payment_type !== 'reversal').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
           pendingInstallments: installments.filter(i => i.status === 'unpaid' || i.status === 'partial').length,
           overdueInstallments: installments.filter(i => i.status === 'overdue').length,
           cashSales: orders.filter(o => o.sale_type === 'cash').length,
           installmentSales: orders.filter(o => o.sale_type === 'installment').length,
-          todayRevenue: todayPayments.reduce((s, p) => s + (p.amount_usd || 0), 0),
+          
         });
 
         const { data: recentData } = await supabase

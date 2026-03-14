@@ -8,7 +8,7 @@ import { CustomerReport } from '../components/reports/CustomerReport';
 import { PaymentReport } from '../components/reports/PaymentReport';
 import { InstallmentReport } from '../components/reports/InstallmentReport';
 import { ExpensesReport } from '../components/reports/ExpensesReport';
-
+import { supabase } from '../lib/database';
 type ReportType = 'profit' | 'sales' | 'customers' | 'payments' | 'installments' | 'expenses';
 
 export function Reports() {

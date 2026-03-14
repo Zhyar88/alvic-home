@@ -66,10 +66,7 @@ export function Payments() {
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('payments').select(
-      '*, order:orders(order_number, balance_due_usd, customer:customers(full_name_en,full_name_ku)), created_by_profile:user_profiles!payments_created_by_fkey(full_name_en,full_name_ku)',
-      { count: 'exact' }
-    );
+    let query = supabase.from('payments', { count: 'exact' }).select('*, order:orders(order_number, balance_due_usd)');
 
     if (search) {
       query = query.or(
@@ -161,10 +158,9 @@ export function Payments() {
     const rate = getExchangeRate();
     const amountUSD = getAmountUSD();
 
-    const { data: numData } = await supabase.rpc('generate_payment_number').single();
-    const paymentNumber = (numData as string) || `PAY-${Date.now()}`;
+    const paymentNumber = `PAY-${Date.now()}`;
 
-    const { data: payData } = await supabase.from('payments').insert([{
+    const { data: payInsert } = await supabase.from('payments').insert([{
       order_id: formData.order_id,
       payment_number: paymentNumber,
       payment_type: formData.payment_type,
@@ -178,7 +174,8 @@ export function Payments() {
       notes_ku: formData.notes_ku,
       created_by: profile?.id,
       created_at: new Date().toISOString(),
-    }]).select('id').single();
+    }]);
+    const payData = Array.isArray(payInsert) ? payInsert[0] : payInsert;
 
     if (formData.payment_type === 'installment' && payData?.id) {
       const { data: pendingEntries } = await supabase
@@ -231,11 +228,12 @@ export function Payments() {
       }
     }
 
-    const { data: order } = await supabase.from('orders').select('total_paid_usd, deposit_paid_usd, final_total_usd, sale_type, installment_months').eq('id', formData.order_id).single();
-    if (order) {
-      const newTotalPaid = (order.total_paid_usd || 0) + amountUSD;
-      const newDepositPaid = formData.payment_type === 'deposit' ? (order.deposit_paid_usd || 0) + amountUSD : order.deposit_paid_usd;
-      const newBalance = Math.max(0, (order.final_total_usd || 0) - newTotalPaid);
+   const { data: orderRows } = await supabase.from('orders').select('total_paid_usd, deposit_paid_usd, final_total_usd, sale_type, installment_months').eq('id', formData.order_id);
+    const order = Array.isArray(orderRows) ? orderRows[0] : orderRows;
+if (order) {
+  const newTotalPaid = Number(order.total_paid_usd || 0) + amountUSD;
+  const newDepositPaid = formData.payment_type === 'deposit' ? Number(order.deposit_paid_usd || 0) + amountUSD : Number(order.deposit_paid_usd || 0);
+  const newBalance = Math.max(0, Number(order.final_total_usd || 0) - newTotalPaid);
       await supabase.from('orders').update({
         total_paid_usd: newTotalPaid,
         deposit_paid_usd: newDepositPaid,
@@ -311,7 +309,18 @@ export function Payments() {
 
     setSaving(false);
     setShowAddModal(false);
+
+    // Show receipt automatically
+    const { data: updatedOrderRows } = await supabase.from('orders').select('order_number, balance_due_usd, customer:customers(full_name_en,full_name_ku)').eq('id', formData.order_id);
+    const updatedOrder = Array.isArray(updatedOrderRows) ? updatedOrderRows[0] : updatedOrderRows;
+    setReceiptPayment({
+      ...payData,
+      order: updatedOrder,
+    } as Payment);
+
     setFormData({ order_id: '', payment_type: 'deposit', currency: 'USD', amount_in_currency: '', payment_date: new Date().toISOString().split('T')[0], notes_en: '', notes_ku: '' });
+    // Refresh orders to get updated balance
+    supabase.from('orders').select('id,order_number,customer:customers(full_name_en,full_name_ku),final_total_usd,balance_due_usd,deposit_required_usd,deposit_paid_usd,sale_type').order('created_at', { ascending: false }).then(({ data }) => setOrders((data || []) as Order[]));
     fetchPayments();
   };
 
@@ -319,8 +328,7 @@ export function Payments() {
     if (!selectedPayment || !canReverse) return;
     setSaving(true);
 
-    const { data: numData } = await supabase.rpc('generate_payment_number').single();
-    const reversalNumber = (numData as string) || `PAY-REV-${Date.now()}`;
+    const reversalNumber = `PAY-REV-${Date.now()}`;
 
     await supabase.from('payments').insert([{
       order_id: selectedPayment.order_id,
@@ -358,10 +366,11 @@ export function Payments() {
       }
     }
 
-    const { data: order } = await supabase.from('orders').select('total_paid_usd, final_total_usd').eq('id', selectedPayment.order_id).single();
+    const { data: orderRows2 } = await supabase.from('orders').select('total_paid_usd, final_total_usd').eq('id', selectedPayment.order_id);
+    const order = Array.isArray(orderRows2) ? orderRows2[0] : orderRows2;
     if (order) {
-      const newTotalPaid = Math.max(0, (order.total_paid_usd || 0) - selectedPayment.amount_usd);
-      const newBalance = Math.max(0, (order.final_total_usd || 0) - newTotalPaid);
+      const newTotalPaid = Math.max(0, Number(order.total_paid_usd || 0) - selectedPayment.amount_usd);
+const newBalance = Math.max(0, Number(order.final_total_usd || 0) - newTotalPaid);
       await supabase.from('orders').update({ total_paid_usd: newTotalPaid, balance_due_usd: newBalance, updated_at: new Date().toISOString() }).eq('id', selectedPayment.order_id);
     }
 
@@ -400,7 +409,19 @@ export function Payments() {
       <SortIcon field={field} current={sortField} dir={sortDir} />
     </th>
   );
-
+  const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes('T')) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
   const selectedOrder = orders.find(o => o.id === formData.order_id);
 
   return (
@@ -488,7 +509,7 @@ export function Payments() {
                   <div className="text-gray-400">{pay.currency}</div>
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-500">{Number(pay.exchange_rate_used).toLocaleString()}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{pay.payment_date}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{fmtDate(pay.payment_date)}</td>
                 <td className="px-4 py-3 text-xs text-gray-600">{(pay.created_by_profile as Record<string, string>)?.full_name_en || '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">

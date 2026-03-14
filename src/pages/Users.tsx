@@ -86,68 +86,84 @@ export function Users() {
     setShowModal(true);
   };
 
-  const handleUpdate = async () => {
-    if (!selectedUser) return;
-    setSaving(true);
-    const { role, custom_role_id } = resolveRolePayload(formData.selectedRoleId);
-    await supabase.from('user_profiles').update({
-      full_name_en: formData.full_name_en,
-      full_name_ku: formData.full_name_ku,
-      role,
-      custom_role_id,
-      phone: formData.phone,
-      is_active: formData.is_active,
-      updated_at: new Date().toISOString(),
-    }).eq('id', selectedUser.id);
-    setSaving(false);
-    setShowModal(false);
-    fetchUsers();
-  };
-
   const handleCreate = async () => {
     if (!createData.email || !createData.password) { setError('Email and password are required'); return; }
     setSaving(true);
     setError('');
 
     const { role, custom_role_id } = resolveRolePayload(createData.selectedRoleId);
-    const { data: { session } } = await supabase.auth.getSession();
+    const token = localStorage.getItem('auth_token');
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          email: createData.email,
-          password: createData.password,
-          full_name_en: createData.full_name_en,
-          full_name_ku: createData.full_name_ku,
-          role,
-          custom_role_id,
-          phone: createData.phone,
-        }),
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/register`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: createData.email,
+            password: createData.password,
+            username: createData.email,
+            full_name_en: createData.full_name_en,
+            full_name_ku: createData.full_name_ku,
+            role,
+            custom_role_id,
+            phone: createData.phone,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create user');
+        setSaving(false);
+        return;
       }
-    );
 
-    const result = await response.json();
-
-    if (!response.ok || result.error) {
-      setError(result.error || 'Failed to create user');
       setSaving(false);
-      return;
+      setShowCreateModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create user');
+      setSaving(false);
     }
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedUser) return;
+    setSaving(true);
+    const { role, custom_role_id } = resolveRolePayload(formData.selectedRoleId);
+    const token = localStorage.getItem('auth_token');
+
+    await fetch(`${import.meta.env.VITE_API_URL}/users/${selectedUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        full_name_en: formData.full_name_en,
+        full_name_ku: formData.full_name_ku,
+        role,
+        custom_role_id,
+        phone: formData.phone,
+        is_active: formData.is_active,
+      }),
+    });
 
     setSaving(false);
-    setShowCreateModal(false);
+    setShowModal(false);
     fetchUsers();
   };
 
   const handleToggle = async (u: UserProfile) => {
-    await supabase.from('user_profiles').update({ is_active: !u.is_active, updated_at: new Date().toISOString() }).eq('id', u.id);
+    const token = localStorage.getItem('auth_token');
+    await fetch(`${import.meta.env.VITE_API_URL}/users/${u.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ is_active: !u.is_active }),
+    });
     fetchUsers();
   };
 

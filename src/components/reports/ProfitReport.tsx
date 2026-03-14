@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Filter, Download, Users, Wallet, ArrowUpDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -6,7 +7,6 @@ import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import type { Customer } from '../../types';
-
 interface ProfitReportData {
   period: string;
   total_revenue: number;

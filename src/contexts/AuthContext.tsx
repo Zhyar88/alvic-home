@@ -83,16 +83,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [customRole, setCustomRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      setLoading(false);
-    } else {
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
+  useEffect(async () => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    // Decode JWT to restore user/profile from token
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Check token hasn't expired
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('auth_token');
+        setLoading(false);
+        return;
+      }
+      setUser({
+        id: payload.id,
+        email: payload.email,
+        full_name: payload.full_name || '',
+        role: payload.role || 'employee',
+      });
+      // Set basic profile from token first
+      setProfile({
+        id: payload.id,
+        user_id: payload.id,
+        full_name_en: payload.full_name || '',
+        full_name_ku: payload.full_name || '',
+        role: payload.role || 'employee',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as UserProfile);
+      // Then fetch full profile from DB
+      try {
+        const { supabase } = await import('../lib/database');
+        const { data: profileRows } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', payload.id);
+        const dbProfile = Array.isArray(profileRows) ? profileRows[0] : profileRows;
+        if (dbProfile) setProfile(dbProfile as UserProfile);
+      } catch {}
+    } catch (e) {
+      localStorage.removeItem('auth_token');
     }
-  }, []);
+    setLoading(false);
+  } else {
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+  }
+}, []);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -100,15 +139,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.user) {
         setUser(data.user);
-        setProfile({
-          id: data.user.id,
-          user_id: data.user.id,
-          full_name: data.user.full_name,
-          role: data.user.role,
-          is_active: data.user.is_active,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } as UserProfile);
+        // Fetch full profile from DB
+        try {
+          const { supabase } = await import('../lib/database');
+          const { data: profileRows } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', data.user.id);
+          const dbProfile = Array.isArray(profileRows) ? profileRows[0] : profileRows;
+          if (dbProfile) {
+            setProfile(dbProfile as UserProfile);
+          } else {
+            setProfile({
+              id: data.user.id,
+              user_id: data.user.id,
+              full_name_en: data.user.full_name,
+              full_name_ku: data.user.full_name,
+              role: data.user.role,
+              is_active: data.user.is_active,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as UserProfile);
+          }
+        } catch {
+          setProfile({
+            id: data.user.id,
+            user_id: data.user.id,
+            full_name_en: data.user.full_name,
+            full_name_ku: data.user.full_name,
+            role: data.user.role,
+            is_active: data.user.is_active,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as UserProfile);
+        }
       }
 
       return { error: null };

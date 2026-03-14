@@ -168,33 +168,25 @@ export function Customers() {
   };
 
   const uploadDocuments = async (customerId: string) => {
-    if (!pendingDocs.length) return true;
-    setUploadingDocs(true);
-    const errors: string[] = [];
+  if (!pendingDocs.length) return true;
+  setUploadingDocs(true);
+  const errors: string[] = [];
+  const token = localStorage.getItem('auth_token');
 
-    console.log('Starting upload for customer:', customerId);
-    console.log('Pending documents:', pendingDocs.length);
+  for (const doc of pendingDocs) {
+    try {
+      // Upload file
+      const formData = new FormData();
+      formData.append('file', doc.file);
+      const uploadRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/upload/${customerId}`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }
+      );
+      if (!uploadRes.ok) { errors.push(`Failed to upload ${doc.file.name}`); continue; }
+      const { path } = await uploadRes.json();
 
-    for (const doc of pendingDocs) {
-      console.log('Processing document:', doc.file.name);
-      const ext = doc.file.name.split('.').pop();
-      const path = `${customerId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-      console.log('Uploading to path:', path);
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('customer-documents')
-        .upload(path, doc.file, { contentType: doc.file.type, upsert: false });
-
-      console.log('Upload result:', { uploadData, uploadErr });
-
-      if (uploadErr) {
-        console.error('Upload error:', uploadErr);
-        errors.push(`Failed to upload ${doc.file.name}: ${uploadErr.message}`);
-        continue;
-      }
-
-      console.log('Inserting document record...');
-      const { data: insertData, error: insertErr } = await supabase.from('customer_documents').insert({
+      // Save document record
+      const { error: insertErr } = await supabase.from('customer_documents').insert({
         customer_id: customerId,
         document_type: doc.document_type,
         label_en: doc.label_en,
@@ -205,32 +197,23 @@ export function Customers() {
         mime_type: doc.file.type,
         created_by: profile?.id,
       });
-
-      console.log('Insert result:', { insertData, insertErr });
-
-      if (insertErr) {
-        console.error('Insert error:', insertErr);
-        errors.push(`Failed to save ${doc.file.name}: ${insertErr.message}`);
-        await supabase.storage.from('customer-documents').remove([path]);
-      }
+      if (insertErr) errors.push(`Failed to save ${doc.file.name}: ${insertErr}`);
+    } catch (e: any) {
+      errors.push(`Error processing ${doc.file.name}: ${e.message}`);
     }
+  }
 
-    setUploadingDocs(false);
-
-    if (errors.length > 0) {
-      console.error('Upload completed with errors:', errors);
-      setError(errors.join('\n'));
-      return false;
-    }
-
-    console.log('Upload completed successfully');
-    setPendingDocs([]);
-    return true;
-  };
+  setUploadingDocs(false);
+  if (errors.length > 0) { setError(errors.join('\n')); return false; }
+  setPendingDocs([]);
+  return true;
+};
 
   const handleSave = async () => {
+    console.log('handleSave called', formData);
     if (!formData.full_name_en && !formData.full_name_ku) { setError(t('customerNameRequired')); return; }
     if (!formData.phone) { setError(t('phoneNumberRequired')); return; }
+    console.log('past validation');
     setSaving(true);
     setError('');
     const payload = { ...formData, created_by: profile?.id, updated_at: new Date().toISOString() };
@@ -239,9 +222,9 @@ export function Customers() {
       const { error: e } = await supabase.from('customers').update(payload).eq('id', selectedCustomer.id);
       if (e) { setError(e.message); setSaving(false); return; }
     } else {
-      const { data, error: e } = await supabase.from('customers').insert([{ ...payload, created_at: new Date().toISOString() }]).select('id').single();
+      const { data, error: e } = await supabase.from('customers').insert([{ ...payload, created_at: new Date().toISOString() }]);
       if (e) { setError(e.message); setSaving(false); return; }
-      savedId = data?.id;
+      savedId = Array.isArray(data) ? data[0]?.id : data?.id;
     }
 
     if (savedId && pendingDocs.length) {
@@ -258,26 +241,28 @@ export function Customers() {
   };
 
   const handleDownload = async (doc: CustomerDocument) => {
-    const { data } = await supabase.storage
-      .from('customer-documents')
-      .createSignedUrl(doc.file_path, 60);
-    if (data?.signedUrl) {
-      const a = document.createElement('a');
-      a.href = data.signedUrl;
-      a.download = doc.file_name;
-      a.target = '_blank';
-      a.click();
-    }
+    const url = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/customer-documents/${doc.file_path}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.file_name;
+    a.target = '_blank';
+    a.click();
   };
 
   const handleDeleteDoc = async (doc: CustomerDocument) => {
     if (!confirm(`Delete "${doc.label_en || doc.file_name}"?`)) return;
     setDeletingDocId(doc.id);
-    await supabase.storage.from('customer-documents').remove([doc.file_path]);
+    const token = localStorage.getItem('auth_token');
+    const [customerId, filename] = doc.file_path.split('/');
+    await fetch(`${import.meta.env.VITE_API_URL}/upload/${customerId}/${filename}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
     await supabase.from('customer_documents').delete().eq('id', doc.id);
     setDetailDocs(prev => prev.filter(d => d.id !== doc.id));
     setDeletingDocId(null);
   };
+
 
   const handleToggleActive = async (c: Customer) => {
     await supabase.from('customers').update({ is_active: !c.is_active }).eq('id', c.id);
@@ -389,11 +374,11 @@ export function Customers() {
       <div className="text-sm text-gray-500">{total} {t('customers').toLowerCase()}</div>
 
       <Table
-        columns={columns as Parameters<typeof Table>[0]['columns']}
-        data={customers as Record<string, unknown>[]}
+        columns={columns as unknown as Parameters<typeof Table>[0]['columns']}
+        data={customers as unknown as Record<string, unknown>[]}
         loading={loading}
         emptyMessage={t('noData')}
-        rowKey={(c) => (c as Customer).id}
+        rowKey={(c) => (c as unknown as Customer).id}
         onSort={(key, dir) => { setSortKey(key); setSortDir(dir); }}
         sortKey={sortKey}
         sortDir={sortDir}

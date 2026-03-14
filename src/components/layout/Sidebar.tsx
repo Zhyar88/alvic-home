@@ -3,7 +3,7 @@ import logoUrl from '../../assets/logo.png';
 import {
   LayoutDashboard, ShoppingBag, Users, CreditCard, CalendarDays,
   Receipt, Lock, BarChart3, UserCog, Shield, ClipboardList,
-  TrendingUp, Menu, X, LogOut, ChevronDown
+  TrendingUp, Menu, X, LogOut, ChevronDown, Settings
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { key: 'users', icon: <UserCog size={18} />, labelKey: 'users', permission: { module: 'users', action: 'read' } },
   { key: 'roles', icon: <Shield size={18} />, labelKey: 'roles', permission: { module: 'roles', action: 'read' } },
   { key: 'audit_log', icon: <ClipboardList size={18} />, labelKey: 'auditLog', permission: { module: 'audit_logs', action: 'read' } },
+  { key: 'settings', icon: <Settings size={18} />, labelKey: 'settings' },
 ];
 
 interface SidebarProps {

@@ -3,6 +3,7 @@ import './env.js';
 
 import express from 'express';
 import cors from 'cors';
+import { join } from 'path';
 
 // Import routes (these will now have env variables available)
 import authRoutes from './routes/auth.js';
@@ -17,6 +18,7 @@ import lockSessionsRoutes from './routes/lock-sessions.js';
 import reportsRoutes from './routes/reports.js';
 import auditRoutes from './routes/audit.js';
 import databaseRoutes from './routes/database.js';
+import uploadRoutes from './routes/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +33,7 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
-
+app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -50,7 +52,7 @@ app.use('/api/lock-sessions', lockSessionsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/db', databaseRoutes);
-
+app.use('/api/upload', uploadRoutes);
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);

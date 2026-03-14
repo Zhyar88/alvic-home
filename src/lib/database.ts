@@ -18,6 +18,8 @@ interface QueryBuilder<T = any> {
   range(from: number, to: number): QueryBuilder<T>;
   maybeSingle(): Promise<{ data: T | null; error: any }>;
   single(): Promise<{ data: T; error: any }>;
+  gte(column: string, value: any): QueryBuilder<T>;
+  lte(column: string, value: any): QueryBuilder<T>;
   then(resolve: (value: { data: T[] | null; error: any; count?: number }) => void, reject?: (reason: any) => void): Promise<any>;
 }
 
@@ -79,10 +81,6 @@ class PostgresQueryBuilder<T = any> implements QueryBuilder<T> {
     return this;
   }
 
-  or(query: string): QueryBuilder<T> {
-    this.filters.push({ type: 'or', query });
-    return this;
-  }
 
   order(column: string, options?: { ascending?: boolean }): QueryBuilder<T> {
     this.orderBy.push({ column, ascending: options?.ascending ?? true });
@@ -97,6 +95,20 @@ class PostgresQueryBuilder<T = any> implements QueryBuilder<T> {
   range(from: number, to: number): QueryBuilder<T> {
     this.rangeStart = from;
     this.rangeEnd = to;
+    return this;
+  }
+  gte(column: string, value: any): QueryBuilder<T> {
+    this.filters.push({ type: 'gte', column, value });
+    return this;
+  }
+
+  lte(column: string, value: any): QueryBuilder<T> {
+    this.filters.push({ type: 'lte', column, value });
+    return this;
+  }
+
+  or(query: string): QueryBuilder<T> {
+    this.filters.push({ type: 'or', query });
     return this;
   }
 
@@ -121,6 +133,8 @@ class PostgresQueryBuilder<T = any> implements QueryBuilder<T> {
       this.filters.forEach((f, i) => {
         if (f.type === 'eq') params.append(`filter_${i}`, `${f.column}:eq:${f.value}`);
         else if (f.type === 'neq') params.append(`filter_${i}`, `${f.column}:neq:${f.value}`);
+        else if (f.type === 'gte') params.append(`filter_${i}`, `${f.column}:gte:${f.value}`);
+        else if (f.type === 'lte') params.append(`filter_${i}`, `${f.column}:lte:${f.value}`);
         else if (f.type === 'in') params.append(`filter_${i}`, `${f.column}:in:${JSON.stringify(f.value)}`);
         else if (f.type === 'or') params.append(`or`, f.query || '');
       });

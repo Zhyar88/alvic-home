@@ -26,7 +26,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
           .eq('id', initialOrder.id)
           .maybeSingle(),
         supabase.from('payments')
-          .select('*, created_by_profile:user_profiles!payments_created_by_fkey(full_name_en,full_name_ku)')
+          .select('*')
           .eq('order_id', initialOrder.id)
           .order('payment_date', { ascending: true })
           .order('created_at', { ascending: true }),
@@ -54,13 +54,13 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
   const reversals = payments.filter(p => p.payment_type === 'reversal' || p.is_reversed);
 
   const totals = {
-    usd: activePayments.reduce((s, p) => s + p.amount_usd, 0),
-    usdPayments: activePayments.filter(p => p.currency === 'USD').reduce((s, p) => s + p.amount_in_currency, 0),
-    iqdPayments: activePayments.filter(p => p.currency === 'IQD').reduce((s, p) => s + p.amount_in_currency, 0),
-    deposit: activePayments.filter(p => p.payment_type === 'deposit').reduce((s, p) => s + p.amount_usd, 0),
-    installment: activePayments.filter(p => p.payment_type === 'installment').reduce((s, p) => s + p.amount_usd, 0),
-    final: activePayments.filter(p => p.payment_type === 'final').reduce((s, p) => s + p.amount_usd, 0),
-    partial: activePayments.filter(p => p.payment_type === 'partial').reduce((s, p) => s + p.amount_usd, 0),
+    usd: activePayments.reduce((s, p) => s + Number(p.amount_usd || 0), 0),
+    usdPayments: activePayments.filter(p => p.currency === 'USD').reduce((s, p) => s + Number(p.amount_in_currency || 0), 0),
+    iqdPayments: activePayments.filter(p => p.currency === 'IQD').reduce((s, p) => s + Number(p.amount_in_currency || 0), 0),
+    deposit: activePayments.filter(p => p.payment_type === 'deposit').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
+    installment: activePayments.filter(p => p.payment_type === 'installment').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
+    final: activePayments.filter(p => p.payment_type === 'final').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
+    partial: activePayments.filter(p => p.payment_type === 'partial').reduce((s, p) => s + Number(p.amount_usd || 0), 0),
   };
 
   const balance = Math.max(0, order.final_total_usd - totals.usd);
@@ -73,6 +73,19 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
 
   const installmentStatusLabels: Record<string, string> = {
     unpaid: t('unpaid'), partial: t('partial'), paid: t('paid'), overdue: t('overdue'),
+  };
+  const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes('T')) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
   };
 
   return (
@@ -161,7 +174,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                   <div>
                     <p className="text-gray-500 text-xs mb-0.5">{t('paidInIQD')}</p>
                     <p className="font-bold text-gray-900">{fmtIQD(totals.iqdPayments)}</p>
-                    <p className="text-xs text-gray-400">(≈ {fmt(activePayments.filter(p => p.currency === 'IQD').reduce((s, p) => s + p.amount_usd, 0))} USD)</p>
+                    <p className="text-xs text-gray-400">(≈ {fmt(activePayments.filter(p => p.currency === 'IQD').reduce((s, p) => s + Number(p.amount_usd || 0), 0))} USD)</p>
                   </div>
                 </div>
               </div>
@@ -204,7 +217,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                         <td className="px-4 py-2.5 text-center text-xs text-gray-500">
                           {Number(pay.exchange_rate_used) > 1 ? Number(pay.exchange_rate_used).toLocaleString() : '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-600">{pay.payment_date}</td>
+                        <td className="px-4 py-2.5 text-xs text-gray-600">{fmtDate(pay.payment_date)}</td>
                         <td className="px-4 py-2.5 text-xs text-gray-500">
                           {(pay.created_by_profile as Record<string, string>)?.full_name_en || '—'}
                         </td>
@@ -254,7 +267,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                           <tr key={inst.id} className={`${inst.status === 'overdue' ? 'bg-red-50/20' : 'hover:bg-gray-50/40'} transition-colors`}>
                             <td className="px-4 py-2.5 font-bold text-gray-600">#{inst.installment_number}</td>
                             <td className="px-4 py-2.5">
-                              <p className={inst.status === 'overdue' ? 'text-red-600 font-semibold' : 'text-gray-700'}>{inst.due_date}</p>
+                              <p className={inst.status === 'overdue' ? 'text-red-600 font-semibold' : 'text-gray-700'}>{fmtDate(inst.due_date)}</p>
                               {daysOverdue > 0 && <p className="text-xs text-red-500">{daysOverdue}{t('daysOverdueLabel')}</p>}
                             </td>
                             <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{fmt(inst.amount_usd)}</td>
@@ -272,9 +285,9 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                     <tfoot>
                       <tr className="bg-gray-50 border-t border-gray-100">
                         <td colSpan={2} className="px-4 py-2.5 font-bold text-gray-700 text-sm">{t('totalRow')}</td>
-                        <td className="px-4 py-2.5 text-right font-bold text-gray-900">{fmt(installments.reduce((s, i) => s + i.amount_usd, 0))}</td>
-                        <td className="px-4 py-2.5 text-right font-bold text-emerald-700">{fmt(installments.reduce((s, i) => s + i.paid_amount_usd, 0))}</td>
-                        <td className="px-4 py-2.5 text-right font-bold text-red-600">{fmt(installments.reduce((s, i) => s + Math.max(0, i.amount_usd - i.paid_amount_usd), 0))}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-gray-900">{fmt(installments.reduce((s, i) => s + Number(i.amount_usd || 0), 0))}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-emerald-700">{fmt(installments.reduce((s, i) => s + Number(i.paid_amount_usd || 0), 0))}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-red-600">{fmt(installments.reduce((s, i) => s + Math.max(0, Number(i.amount_usd || 0) - Number(i.paid_amount_usd || 0)), 0))}</td>
                         <td />
                       </tr>
                     </tfoot>
@@ -293,7 +306,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                   {reversals.map(pay => (
                     <div key={pay.id} className="flex justify-between text-xs text-red-600">
                       <span className="font-mono">{pay.payment_number}</span>
-                      <span>{fmt(Math.abs(pay.amount_usd))} — {pay.payment_date}</span>
+                      <span>{fmt(Math.abs(pay.amount_usd))} — {fmtDate(pay.payment_date)}</span>
                     </div>
                   ))}
                 </div>

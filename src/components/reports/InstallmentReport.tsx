@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, DollarSign, TrendingUp, AlertCircle, ArrowUpDown, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -51,42 +52,41 @@ export function InstallmentReport() {
     try {
       const { data } = await supabase
         .from('installment_entries')
-        .select(`
-          id,
-          installment_number,
-          due_date,
-          amount_usd,
-          paid_amount_usd,
-          status,
-          is_modified,
-          orders!inner (
-            id,
-            order_number,
-            customers (
-              full_name_en,
-              full_name_ku
-            )
-          )
-        `)
+        .select('id,installment_number,due_date,amount_usd,paid_amount_usd,status,is_modified,order_id')
         .order('due_date', { ascending: true });
 
-      const installmentData = (data || []).map(entry => ({
-        id: entry.id,
-        order_id: entry.orders?.id || '',
-        order_number: entry.orders?.order_number || '',
-        customer_name_en: entry.orders?.customers?.full_name_en || '',
-        customer_name_ku: entry.orders?.customers?.full_name_ku || '',
-        installment_number: entry.installment_number,
-        due_date: entry.due_date,
-        amount_usd: entry.amount_usd,
-        paid_amount_usd: entry.paid_amount_usd,
-        status: entry.status,
-        is_modified: entry.is_modified,
-      }));
+      const entries = data || [];
+
+      // Fetch orders for these entries
+      const orderIds = [...new Set(entries.map((e: any) => e.order_id).filter(Boolean))];
+      let ordersMap: Record<string, any> = {};
+      if (orderIds.length > 0) {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('id,order_number,customer_id,customer:customers(full_name_en,full_name_ku)')
+          .in('id', orderIds);
+        (ordersData || []).forEach((o: any) => { ordersMap[o.id] = o; });
+      }
+
+      const installmentData = entries.map((entry: any) => {
+        const order = ordersMap[entry.order_id] || {};
+        return {
+          id: entry.id,
+          order_id: entry.order_id || '',
+          order_number: order.order_number || '',
+          customer_name_en: order.customer?.full_name_en || '',
+          customer_name_ku: order.customer?.full_name_ku || '',
+          installment_number: entry.installment_number,
+          due_date: entry.due_date,
+          amount_usd: entry.amount_usd,
+          paid_amount_usd: entry.paid_amount_usd,
+          status: entry.status,
+          is_modified: entry.is_modified,
+        };
+      });
 
       setInstallments(installmentData);
       setFilteredInstallments(installmentData);
-
       calculateSummary(installmentData);
     } catch (error) {
       console.error('Error fetching installments:', error);

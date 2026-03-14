@@ -81,10 +81,10 @@ router.post('/login', async (req: Request<{}, {}, SignInBody>, res: Response) =>
     // Support login with either username or email
     const loginField = username || email;
     const result = await query(
-      `SELECT au.id, au.username, au.email, au.password_hash, up.role
-       FROM auth_users au
-       LEFT JOIN user_profiles up ON au.id = up.user_id
-       WHERE au.username = $1 OR au.email = $1`,
+      `SELECT au.id AS id, au.username, au.email, au.password_hash, up.role, up.id AS profile_id
+      FROM auth_users au
+      LEFT JOIN user_profiles up ON au.id = up.user_id
+      WHERE au.username = $1 OR au.email = $1`,
       [loginField]
     );
 

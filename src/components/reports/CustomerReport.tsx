@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/database';
 import React, { useState } from 'react';
 import { Users, Download, Search, ArrowUpDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -33,22 +34,13 @@ export function CustomerReport() {
     try {
       const { data: ordersData } = await supabase
         .from('orders')
-        .select(`
-          customer_id,
-          final_total_usd,
-          total_profit_usd,
-          customers (
-            id,
-            full_name_en,
-            full_name_ku
-          )
-        `);
+        .select('customer_id,final_total_usd,total_profit_usd,customer:customers(id,full_name_en,full_name_ku)');
 
       const customerMap = new Map<string, CustomerStats>();
 
       (ordersData || []).forEach(order => {
         const customerId = order.customer_id;
-        const customer = order.customers;
+        const customer = order.customer;
 
         if (!customer) return;
 

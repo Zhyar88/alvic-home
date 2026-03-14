@@ -16,13 +16,15 @@ import { Reports } from './pages/Reports';
 import { Users } from './pages/Users';
 import { Roles } from './pages/Roles';
 import { AuditLog } from './pages/AuditLog';
+import { Settings } from './pages/Settings';
 import { ShieldOff } from 'lucide-react';
 import { CashRegisterProvider } from './contexts/CashRegisterContext';
+import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
 
 type Page =
   | 'dashboard' | 'orders' | 'customers' | 'payments'
   | 'installments' | 'expenses' | 'lock' | 'reports'
-  | 'exchange_rates' | 'users' | 'roles' | 'audit_log';
+  | 'exchange_rates' | 'users' | 'roles' | 'audit_log' | 'settings';
 
 const PAGE_TITLES: Record<Page, string> = {
   dashboard: 'Dashboard',
@@ -37,6 +39,7 @@ const PAGE_TITLES: Record<Page, string> = {
   users: 'Users',
   roles: 'Roles & Permissions',
   audit_log: 'Audit Log',
+   settings: 'Settings',
 };
 
 const PAGE_PERMISSION: Partial<Record<Page, { module: string; action: string }>> = {
@@ -68,7 +71,10 @@ function AccessDenied() {
 function AppContent() {
   const { user, profile, loading, hasPermission } = useAuth();
   const { t } = useLanguage();
-  const [activePage, setActivePage] = useState<Page>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activePage = (location.pathname.replace('/', '') || 'dashboard') as Page;
+  const setActivePage = (page: string) => navigate(`/${page}`);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (loading) {
@@ -109,6 +115,7 @@ function AppContent() {
       case 'users': return <Users />;
       case 'roles': return <Roles />;
       case 'audit_log': return <AuditLog />;
+      case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
   };
@@ -117,7 +124,7 @@ function AppContent() {
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
         activePage={activePage}
-        onNavigate={(page) => setActivePage(page as Page)}
+        onNavigate={(page) => setActivePage(page)}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(prev => !prev)}
       />
@@ -136,13 +143,15 @@ function AppContent() {
 
 function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <CashRegisterProvider>
-          <AppContent />
-        </CashRegisterProvider>
-      </AuthProvider>
-    </LanguageProvider>
+    <BrowserRouter>
+      <LanguageProvider>
+        <AuthProvider>
+          <CashRegisterProvider>
+            <AppContent />
+          </CashRegisterProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </BrowserRouter>
   );
 }
 
