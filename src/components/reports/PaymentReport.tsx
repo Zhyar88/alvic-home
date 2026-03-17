@@ -152,7 +152,7 @@ export function PaymentReport() {
 
       const totals = paymentData.reduce((acc, p) => ({
         total_payments: acc.total_payments + 1,
-        total_usd: acc.total_usd + (p.currency === 'USD' ? Number(p.amount_in_currency || 0) : 0),
+        total_usd: acc.total_usd + Number(p.amount_usd || 0),
         total_iqd: acc.total_iqd + (p.currency === 'IQD' ? Number(p.amount_in_currency || 0) : 0),
         deposit_count: acc.deposit_count + (p.payment_type === 'deposit' ? 1 : 0),
         installment_count: acc.installment_count + (p.payment_type === 'installment' ? 1 : 0),

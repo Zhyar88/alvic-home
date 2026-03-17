@@ -27,7 +27,11 @@ export function ExchangeRates() {
 
   const fetchRates = async () => {
     setLoading(true);
-    const { data } = await supabase.from('exchange_rates').select('*').order('effective_date', { ascending: false }).limit(30);
+    const { data } = await supabase.from('exchange_rates')
+  .select('*')
+  .order('effective_date', { ascending: false })
+  .order('created_at', { ascending: false })
+  .limit(30);
     setRates((data || []) as ExchangeRate[]);
     setLoading(false);
   };

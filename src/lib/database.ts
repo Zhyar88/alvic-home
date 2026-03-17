@@ -45,7 +45,11 @@ class PostgresQueryBuilder<T = any> implements QueryBuilder<T> {
 
   select(columns = '*'): QueryBuilder<T> {
     this.selectCols = columns;
-    this.operation = 'select';
+    // Only switch to select if no other operation has been set
+    // This allows .insert([...]).select().single() to work correctly
+    if (this.operation === 'select') {
+      this.operation = 'select';
+    }
     return this;
   }
 
