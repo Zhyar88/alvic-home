@@ -124,14 +124,15 @@ export function Orders() {
   const [newStatus, setNewStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
   const [saving, setSaving] = useState(false);
-
+  const [custSearch, setCustSearch] = useState('');
+  const [custOpen, setCustOpen] = useState(false);
   const statusLabels: Record<string, string> = {
     draft: t('draft'), approved: t('approved'), deposit_paid: t('deposit_paid'),
     in_production: t('in_production'), ready: t('ready'), installed: t('installed'), finished: t('finished'),
   };
 
   useEffect(() => {
-    supabase.from('customers').select('id,full_name_en,full_name_ku').eq('is_active', true).order('full_name_en').then(({ data }) => setCustomers((data || []) as Customer[]));
+    supabase.from('customers').select('id,full_name_en,full_name_ku,phone').eq('is_active', true).order('full_name_en').then(({ data }) => setCustomers((data || []) as Customer[]));
     supabase.from('user_profiles').select('id,full_name_en,full_name_ku,role').eq('is_active', true).then(({ data }) => setEmployees((data || []) as UserProfile[]));
     supabase.from('exchange_rates').select('rate_cash,rate_installment').order('effective_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
       if (data) setCurrentRate({ rate_cash: Number(data.rate_cash), rate_installment: Number(data.rate_installment) });
@@ -281,7 +282,7 @@ export function Orders() {
 
     const orderNum = selectedOrder?.order_number || await generateOrderNumber();
 
-   let calculatedMonths = Number(formData.installment_months || 6);
+    let calculatedMonths = Number(formData.installment_months || 6);
     if (formData.sale_type === 'installment' && formData.installment_mode === 'by_amount') {
       const depositReq = Number(totals.deposit_required_usd || 0);
       const remainingForInstallments = Math.max(0, (totals.final_total_usd || 0) - depositReq);
@@ -319,7 +320,7 @@ export function Orders() {
       }
     }
 
-    if (orderId &&  items.length > 0) {
+    if (orderId && items.length > 0) {
       const itemRows = items.map((item, i) => ({
         ...item,
         order_id: orderId,
@@ -331,11 +332,11 @@ export function Orders() {
     }
 
     if (orderId && formData.sale_type === 'installment') {
-      
+
       const mode = formData.installment_mode || 'by_months';
-console.log('installment mode:', mode);
-console.log('installment_monthly_amount:', formData.installment_monthly_amount);
-console.log('installment_months:', formData.installment_months);
+      console.log('installment mode:', mode);
+      console.log('installment_monthly_amount:', formData.installment_monthly_amount);
+      console.log('installment_months:', formData.installment_months);
       if (selectedOrder) {
         const { data: existingEntries } = await supabase
           .from('installment_entries')
@@ -363,7 +364,7 @@ console.log('installment_months:', formData.installment_months);
           } else {
             const monthlyAmt = Number(formData.installment_monthly_amount || 0);
             if (monthlyAmt > 0) {
-              
+
               const months = Math.max(1, Math.round(remainingAfterPayments / monthlyAmt));
               await generateInstallmentSchedule(orderId, totals, months, totalAlreadyPaid > 0 ? totalAlreadyPaid : 0, monthlyAmt);
             }
@@ -491,7 +492,7 @@ console.log('installment_months:', formData.installment_months);
   };
 
   const handleDelete = async (order: Order) => {
-  if (!confirm(t('confirmDelete'))) return;
+    if (!confirm(t('confirmDelete'))) return;
     // Delete related records first
     await supabase.from('payment_installment_links').delete().eq('payment_id', order.id);
     const { data: payments } = await supabase.from('payments').select('id').eq('order_id', order.id);
@@ -672,16 +673,74 @@ console.log('installment_months:', formData.installment_months);
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')} <span className="text-red-500">*</span></label>
-              <select
-                value={formData.customer_id || ''}
-                onChange={e => set('customer_id', e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-white"
-              >
-                <option value="">{t('selectCustomer')}</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{language === 'ku' ? c.full_name_ku : c.full_name_en}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <div
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white cursor-pointer flex items-center justify-between gap-2 hover:border-emerald-400 transition-colors"
+                  onClick={() => setCustOpen(o => !o)}
+                >
+                  <span className={formData.customer_id ? 'text-gray-900' : 'text-gray-400'}>
+                    {(() => {
+                      const c = customers.find(c => c.id === formData.customer_id);
+                      if (!c) return t('selectCustomer');
+                      return `${language === 'ku' ? c.full_name_ku : c.full_name_en}${c.phone ? ` · ${c.phone}` : ''}`;
+                    })()}
+                  </span>
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                {custOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => { setCustOpen(false); setCustSearch(''); }} />
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      <div className="p-2 border-b border-gray-100">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={custSearch}
+                          onChange={e => setCustSearch(e.target.value)}
+                          placeholder="Search by name or phone..."
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="max-h-52 overflow-y-auto">
+                        <div
+                          className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+                          onClick={() => { set('customer_id', ''); setCustOpen(false); setCustSearch(''); }}
+                        >
+                          {t('selectCustomer')}
+                        </div>
+                        {(() => {
+                          const filtered = custSearch.trim()
+                            ? customers.filter(c => {
+                              const q = custSearch.toLowerCase();
+                              return (
+                                (c.full_name_en || '').toLowerCase().includes(q) ||
+                                (c.full_name_ku || '').toLowerCase().includes(q) ||
+                                (c.phone || '').includes(q)
+                              );
+                            })
+                            : customers;
+                          return filtered.length === 0
+                            ? <div className="px-3 py-4 text-sm text-center text-gray-400">No customers found</div>
+                            : filtered.map(c => (
+                              <div
+                                key={c.id}
+                                className={`px-3 py-2.5 text-sm cursor-pointer hover:bg-emerald-50 flex items-center justify-between gap-3 ${formData.customer_id === c.id ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-900'}`}
+                                onClick={() => { set('customer_id', c.id); setCustOpen(false); setCustSearch(''); }}
+                              >
+                                <span>{language === 'ku' ? c.full_name_ku : c.full_name_en}</span>
+                                {c.phone && <span className="text-xs text-gray-400 flex-shrink-0">{c.phone}</span>}
+                              </div>
+                            ));
+                        })()}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('assignedTo')}</label>
@@ -708,22 +767,20 @@ console.log('installment_months:', formData.installment_months);
                     <button
                       type="button"
                       onClick={() => set('installment_mode', 'by_months')}
-                      className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
-                        (formData.installment_mode || 'by_months') === 'by_months'
+                      className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${(formData.installment_mode || 'by_months') === 'by_months'
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
-                      }`}
+                        }`}
                     >
                       {t('byNumberOfMonths')}
                     </button>
                     <button
                       type="button"
                       onClick={() => set('installment_mode', 'by_amount')}
-                      className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
-                        formData.installment_mode === 'by_amount'
+                      className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${formData.installment_mode === 'by_amount'
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
-                      }`}
+                        }`}
                     >
                       {t('byMonthlyAmount')}
                     </button>
@@ -734,7 +791,7 @@ console.log('installment_months:', formData.installment_months);
                     label={t('numberOfMonths')}
                     value={String(formData.installment_months || 6)}
                     onChange={e => set('installment_months', Number(e.target.value))}
-                    options={[6,7,8,9,10,11,12].map(m => ({ value: String(m), label: `${m} months` }))}
+                    options={[6, 7, 8, 9, 10, 11, 12].map(m => ({ value: String(m), label: `${m} months` }))}
                   />
                 ) : (
                   <Input

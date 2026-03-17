@@ -86,7 +86,8 @@ export function Payments() {
   });
   const [reverseReason, setReverseReason] = useState("");
   const [saving, setSaving] = useState(false);
-
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderOpen, setOrderOpen] = useState(false);
   const { activeSession, logTransaction } = useCashRegister();
   const canCreate = hasPermission("payments", "create");
   const canReverse = hasPermission("payments", "reverse");
@@ -95,7 +96,7 @@ export function Payments() {
     supabase
       .from("orders")
       .select(
-        "id,order_number,customer:customers(full_name_en,full_name_ku),final_total_usd,balance_due_usd,deposit_required_usd,deposit_paid_usd,sale_type"
+        "id,order_number,customer:customers(full_name_en,full_name_ku,phone),final_total_usd,balance_due_usd,deposit_required_usd,deposit_paid_usd,sale_type"
       )
       .order("created_at", { ascending: false })
       .then(({ data }) => setOrders((data || []) as Order[]));
@@ -121,7 +122,7 @@ export function Payments() {
       .from("payments", { count: "exact" })
       .select("*, order:orders(order_number, balance_due_usd, customer_id)");
 
-    
+
     if (filterType !== "all") query = query.eq("payment_type", filterType);
     if (filterDate) query = query.eq("payment_date", filterDate);
 
@@ -143,7 +144,7 @@ export function Payments() {
 
     let result = (data || []) as Payment[];
 
-    
+
 
     if (sortField === "order_number") {
       result.sort((a, b) => {
@@ -228,25 +229,25 @@ export function Payments() {
     }));
 
     if (search) {
-  const q = search.toLowerCase();
-  result = result.filter((pay) => {
-    const ord = pay.order as Record<string, unknown> | undefined;
-    const cust = ord?.customer as Record<string, string> | undefined;
-    return (
-      (pay.payment_number || "").toLowerCase().includes(q) ||
-      String(ord?.order_number || "").toLowerCase().includes(q) ||
-      (cust?.full_name_en || "").toLowerCase().includes(q) ||
-      (cust?.full_name_ku || "").toLowerCase().includes(q) ||
-      (cust?.phone || "").includes(q) ||
-      pay.payment_type.toLowerCase().includes(q) ||
-      (pay.payment_date || "").includes(q)
-    );
-  });
-}
+      const q = search.toLowerCase();
+      result = result.filter((pay) => {
+        const ord = pay.order as Record<string, unknown> | undefined;
+        const cust = ord?.customer as Record<string, string> | undefined;
+        return (
+          (pay.payment_number || "").toLowerCase().includes(q) ||
+          String(ord?.order_number || "").toLowerCase().includes(q) ||
+          (cust?.full_name_en || "").toLowerCase().includes(q) ||
+          (cust?.full_name_ku || "").toLowerCase().includes(q) ||
+          (cust?.phone || "").includes(q) ||
+          pay.payment_type.toLowerCase().includes(q) ||
+          (pay.payment_date || "").includes(q)
+        );
+      });
+    }
 
-setPayments(result);
-setTotal(search ? result.length : count || 0);
-setLoading(false);
+    setPayments(result);
+    setTotal(search ? result.length : count || 0);
+    setLoading(false);
   }, [search, filterType, filterDate, page, sortField, sortDir, language]);
 
   useEffect(() => {
@@ -712,7 +713,7 @@ setLoading(false);
               <Th field="payment_number" label={t("receiptNumber")} />
               <Th field="order_number" label={t("orders")} />
               <Th field="customer" label={t("customer")} />
-<th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{t("phone")}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{t("phone")}</th>
               <Th field="payment_type" label={t("paymentType")} />
               <Th field="amount_usd" label={t("usdAmount")} />
               <Th field="currency" label={t("currency")} />
@@ -878,33 +879,92 @@ setLoading(false);
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t("orders")} <span className="text-red-500">*</span>
             </label>
-            <select
-              value={formData.order_id}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, order_id: e.target.value }))
-              }
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-white"
-            >
-              <option value="">{t("selectOption")}</option>
-              {orders.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {(o as Record<string, unknown>).order_number as string} —{" "}
-                  {language === "ku"
-                    ? (
-                      (o as Record<string, unknown>).customer as Record<
-                        string,
-                        string
+            <div className="relative">
+              <div
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white cursor-pointer flex items-center justify-between gap-2 hover:border-emerald-400 transition-colors"
+                onClick={() => setOrderOpen((o) => !o)}
+              >
+                <span className={formData.order_id ? "text-gray-900" : "text-gray-400"}>
+                  {(() => {
+                    const o = orders.find((o) => o.id === formData.order_id);
+                    if (!o) return t("selectOption");
+                    const cust = (o as Record<string, unknown>).customer as Record<string, string>;
+                    const name = language === "ku" ? cust?.full_name_ku : cust?.full_name_en;
+                    return `${(o as Record<string, unknown>).order_number} — ${name || ""}${cust?.phone ? ` · ${cust.phone}` : ""}`;
+                  })()}
+                </span>
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              {orderOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => { setOrderOpen(false); setOrderSearch(""); }} />
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                    <div className="p-2 border-b border-gray-100">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={orderSearch}
+                        onChange={(e) => setOrderSearch(e.target.value)}
+                        placeholder="Search by order number, customer name or phone..."
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      <div
+                        className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => { setFormData((p) => ({ ...p, order_id: "" })); setOrderOpen(false); setOrderSearch(""); }}
                       >
-                    )?.full_name_ku
-                    : (
-                      (o as Record<string, unknown>).customer as Record<
-                        string,
-                        string
-                      >
-                    )?.full_name_en}
-                </option>
-              ))}
-            </select>
+                        {t("selectOption")}
+                      </div>
+                      {(() => {
+                        const filtered = orderSearch.trim()
+                          ? orders.filter((o) => {
+                            const q = orderSearch.toLowerCase();
+                            const cust = (o as Record<string, unknown>).customer as Record<string, string>;
+                            return (
+                              String((o as Record<string, unknown>).order_number || "").toLowerCase().includes(q) ||
+                              (cust?.full_name_en || "").toLowerCase().includes(q) ||
+                              (cust?.full_name_ku || "").toLowerCase().includes(q) ||
+                              (cust?.phone || "").includes(q)
+                            );
+                          })
+                          : orders;
+
+                        return filtered.length === 0 ? (
+                          <div className="px-3 py-4 text-sm text-center text-gray-400">No orders found</div>
+                        ) : (
+                          filtered.map((o) => {
+                            const cust = (o as Record<string, unknown>).customer as Record<string, string>;
+                            const name = language === "ku" ? cust?.full_name_ku : cust?.full_name_en;
+                            return (
+                              <div
+                                key={o.id}
+                                className={`px-3 py-2.5 text-sm cursor-pointer hover:bg-emerald-50 ${formData.order_id === o.id ? "bg-emerald-50 text-emerald-700 font-medium" : "text-gray-900"}`}
+                                onClick={() => { setFormData((p) => ({ ...p, order_id: o.id })); setOrderOpen(false); setOrderSearch(""); }}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-mono text-xs text-emerald-700 font-bold flex-shrink-0">
+                                    {(o as Record<string, unknown>).order_number as string}
+                                  </span>
+                                  <span className="flex-1 truncate">{name}</span>
+                                  {cust?.phone && (
+                                    <span className="text-xs text-gray-400 flex-shrink-0">{cust.phone}</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {selectedOrder && (

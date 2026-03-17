@@ -35,11 +35,29 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
           .eq('order_id', initialOrder.id)
           .order('installment_number'),
       ]);
+
       if (freshOrder) setOrder(freshOrder as Order);
-      setPayments((pays || []) as Payment[]);
+
+      // Enrich payments with creator profiles
+      let enrichedPays = (pays || []) as Payment[];
+      const createdByIds = [...new Set(enrichedPays.map((p: any) => p.created_by).filter(Boolean))];
+      if (createdByIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, full_name_en, full_name_ku')
+          .in('id', createdByIds);
+        const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+        enrichedPays = enrichedPays.map((p: any) => ({
+          ...p,
+          created_by_profile: profileMap.get(p.created_by) || null,
+        }));
+      }
+
+      setPayments(enrichedPays);
       setInstallments((insts || []) as InstallmentEntry[]);
       setLoading(false);
     };
+
     load();
   }, [initialOrder.id]);
 
@@ -74,9 +92,8 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
   const installmentStatusLabels: Record<string, string> = {
     unpaid: t('unpaid'), partial: t('partial'), paid: t('paid'), overdue: t('overdue'),
   };
+
   const fmtDate = (dateStr: string) => {
-    // If it's just a date string "2026-03-11", use it directly
-    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
     if (dateStr.includes('T')) {
       const date = new Date(dateStr);
       const day = String(date.getDate()).padStart(2, '0');
@@ -218,7 +235,7 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                           {Number(pay.exchange_rate_used) > 1 ? Number(pay.exchange_rate_used).toLocaleString() : '—'}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-gray-600">{fmtDate(pay.payment_date)}</td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">
+                        <td className="px-4 py-2.5 text-xs text-gray-600">
                           {(pay.created_by_profile as Record<string, string>)?.full_name_en || '—'}
                         </td>
                       </tr>
@@ -262,7 +279,9 @@ export function OrderPaymentHistory({ order: initialOrder, onClose }: Props) {
                       {installments.map(inst => {
                         const remaining = inst.amount_usd - inst.paid_amount_usd;
                         const today = new Date().toISOString().split('T')[0];
-                        const daysOverdue = inst.status === 'overdue' ? Math.floor((new Date(today).getTime() - new Date(inst.due_date).getTime()) / 86400000) : 0;
+                        const daysOverdue = inst.status === 'overdue'
+                          ? Math.floor((new Date(today).getTime() - new Date(inst.due_date).getTime()) / 86400000)
+                          : 0;
                         return (
                           <tr key={inst.id} className={`${inst.status === 'overdue' ? 'bg-red-50/20' : 'hover:bg-gray-50/40'} transition-colors`}>
                             <td className="px-4 py-2.5 font-bold text-gray-600">#{inst.installment_number}</td>
