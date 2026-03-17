@@ -1,3 +1,5 @@
+<!-- Global Node -->
+npm install -g node-windows
 <!-- Install Server -->
 CD server:
 npm install
