@@ -35,13 +35,13 @@ export function CashRegisterProvider({ children }: { children: React.ReactNode }
 
   const refresh = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase
+    const { data: rows } = await supabase
       .from('lock_sessions')
       .select('*')
       .eq('session_date', today)
-      .eq('status', 'open')
-      .maybeSingle();
-    setActiveSession(data as LockSession | null);
+      .eq('status', 'open');
+    const session = Array.isArray(rows) ? rows[0] : null;
+    setActiveSession(session as LockSession | null);
     setLoading(false);
   }, []);
 
@@ -78,13 +78,17 @@ export function CashRegisterProvider({ children }: { children: React.ReactNode }
     }]);
 
     const colIncome = params.transaction_type === 'income' ? 'total_income_usd' : 'total_expenses_usd';
-    const { data: sess } = await supabase
+    const { data: sessRows } = await supabase
       .from('lock_sessions')
       .select('total_income_usd, total_expenses_usd, payment_income_usd, expense_outflow_usd, installment_income_usd')
-      .eq('id', params.session_id)
-      .single();
+      .eq('id', params.session_id);
+    console.log('sessRows:', JSON.stringify(sessRows));
+    const sess = Array.isArray(sessRows) ? sessRows[0] : sessRows;
+    console.log('sess:', JSON.stringify(sess));
+    console.log('params.session_id:', params.session_id);
 
     if (sess) {
+      console.log('updating session totals...');
       const updates: Record<string, number> = {
         [colIncome]: Number(sess[colIncome] || 0) + params.amount_usd,
       };

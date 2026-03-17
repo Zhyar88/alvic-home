@@ -100,7 +100,14 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
       </tr>
       <tr>
         <td style="padding:3mm 4mm;background:#f0f4e8;font-weight:700;font-size:10pt;border-bottom:1px solid #dde8c8">جۆری پارەدان</td>
-        <td style="padding:3mm 4mm;font-weight:700;font-size:10pt;color:#0f3d33;border-bottom:1px solid #dde8c8">${payment.payment_type}</td>
+        <td style="padding:3mm 4mm;font-weight:700;font-size:10pt;color:#0f3d33;border-bottom:1px solid #dde8c8">${
+          payment.payment_type === 'deposit' ? 'پێشەکی' :
+          payment.payment_type === 'installment' ? 'قیست' :
+          payment.payment_type === 'final' ? 'پارەی کۆتایی' :
+          payment.payment_type === 'partial' ? 'بەشێک' :
+          payment.payment_type === 'reversal' ? 'گەڕاندنەوە' :
+          payment.payment_type
+        }</td>
       </tr>
       <tr>
         <td style="padding:3mm 4mm;background:#f0f4e8;font-weight:700;font-size:10pt;border-bottom:1px solid #dde8c8">ژمارەی ئۆردەر</td>
@@ -214,7 +221,14 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
                   </tr>
                   <tr>
                     <td style={{ ...labelStyle, borderBottom: '1px solid #dde8c8', width: '45%' }}>جۆری پارەدان</td>
-                    <td style={{ ...valueStyle, borderBottom: '1px solid #dde8c8' }}>{payment.payment_type}</td>
+                    <td style={{ ...valueStyle, borderBottom: '1px solid #dde8c8' }}>
+                      {payment.payment_type === 'deposit' ? 'پێشەکی' :
+                       payment.payment_type === 'installment' ? 'قیست' :
+                       payment.payment_type === 'final' ? 'پارەی کۆتایی' :
+                       payment.payment_type === 'partial' ? 'بەشێک' :
+                       payment.payment_type === 'reversal' ? 'گەڕاندنەوە' :
+                       payment.payment_type}
+                    </td>
                   </tr>
                   <tr>
                     <td style={{ ...labelStyle, borderBottom: '1px solid #dde8c8', width: '45%' }}>ژمارەی ئۆردەر</td>

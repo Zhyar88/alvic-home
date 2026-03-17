@@ -54,8 +54,8 @@ const PAGE_PERMISSION: Partial<Record<Page, { module: string; action: string }>>
   users: { module: 'users', action: 'read' },
   roles: { module: 'roles', action: 'read' },
   audit_log: { module: 'audit_logs', action: 'read' },
-};
-
+  dashboard: { module: 'audit_logs', action: 'read' },
+}
 function AccessDenied() {
   return (
     <div className="flex flex-col items-center justify-center h-full py-24 text-center">
@@ -95,8 +95,8 @@ function AppContent() {
   }
 
   const canAccessPage = (page: Page): boolean => {
-    const perm = PAGE_PERMISSION[page];
-    if (!perm) return true;
+  const perm = PAGE_PERMISSION[page];
+    if (!perm) return true; // ← dashboard has no perm so always returns true
     return hasPermission(perm.module, perm.action);
   };
 

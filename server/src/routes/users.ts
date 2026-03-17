@@ -43,7 +43,7 @@ router.get('/:id', verifyToken, async (req: Request, res: Response) => {
 router.put('/:id', verifyToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { full_name_en, full_name_ku, role, is_active, phone } = req.body;
+    const { full_name_en, full_name_ku, role, is_active, phone, custom_role_id } = req.body;
 
     const result = await query(
       `UPDATE user_profiles
@@ -52,10 +52,11 @@ router.put('/:id', verifyToken, requireAdmin, async (req: Request, res: Response
            role = COALESCE($4, role),
            is_active = COALESCE($5, is_active),
            phone = COALESCE($6, phone),
+           custom_role_id = $7,
            updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [id, full_name_en, full_name_ku, role, is_active, phone]
+      [id, full_name_en, full_name_ku, role, is_active, phone, custom_role_id || null]
     );
 
     if (result.rowCount === 0) {

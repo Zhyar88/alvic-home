@@ -270,7 +270,7 @@ export function Lock() {
   const handleCloseSession = async () => {
     if (!activeSession || !canUpdate) return;
     setSaving(true);
-    const closing = (activeSession.opening_balance_usd || 0) + (activeSession.total_income_usd || 0) - (activeSession.total_expenses_usd || 0);
+    const closing = Number(activeSession.opening_balance_usd || 0) + Number(activeSession.total_income_usd || 0) - Number(activeSession.total_expenses_usd || 0);
     await supabase.from('lock_sessions').update({
       status: 'closed',
       closed_at: new Date().toISOString(),
@@ -287,8 +287,9 @@ export function Lock() {
     fetchSessions();
   };
 
+  console.log('activeSession:', JSON.stringify(activeSession));
   const closingBalance = activeSession
-    ? (activeSession.opening_balance_usd || 0) + (activeSession.total_income_usd || 0) - (activeSession.total_expenses_usd || 0)
+    ? (Number(activeSession.opening_balance_usd) || 0) + (Number(activeSession.total_income_usd) || 0) - (Number(activeSession.total_expenses_usd) || 0)
     : 0;
 
   const today = new Date().toISOString().split('T')[0];
@@ -332,11 +333,11 @@ export function Lock() {
                 </div>
                 <div className="p-3.5 bg-emerald-50 rounded-xl">
                   <p className="text-xs text-emerald-600 mb-1">{t('income')}</p>
-                  <p className="font-bold text-emerald-700">{fmt(activeSession.total_income_usd || 0)}</p>
+                  <p className="font-bold text-emerald-700">{fmt(Number(activeSession.total_income_usd) || 0)}</p>
                 </div>
                 <div className="p-3.5 bg-red-50 rounded-xl">
                   <p className="text-xs text-red-500 mb-1">{t('expensesLabel')}</p>
-                  <p className="font-bold text-red-700">{fmt(activeSession.total_expenses_usd || 0)}</p>
+                  <p className="font-bold text-red-700">{fmt(Number(activeSession.total_expenses_usd) || 0)}</p>
                 </div>
                 <div className="p-3.5 bg-blue-50 rounded-xl">
                   <p className="text-xs text-blue-600 mb-1">{t('currentBalance')}</p>
@@ -473,7 +474,7 @@ export function Lock() {
                     </div>
                     <div>
                       <p className="text-gray-400">{t('closingLabel')}</p>
-                      <p className="font-semibold text-gray-800">{fmt(session.closing_balance_usd || 0)}</p>
+                      <p className="font-semibold text-gray-800">{fmt(Number(session.closing_balance_usd) || (Number(session.opening_balance_usd || 0) + Number(session.total_income_usd || 0) - Number(session.total_expenses_usd || 0)))}</p>
                     </div>
                   </div>
                   {(session.total_expenses_usd || 0) > 0 && (

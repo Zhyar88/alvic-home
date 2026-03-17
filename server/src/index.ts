@@ -19,6 +19,7 @@ import reportsRoutes from './routes/reports.js';
 import auditRoutes from './routes/audit.js';
 import databaseRoutes from './routes/database.js';
 import uploadRoutes from './routes/upload.js';
+import backupRouter from './routes/backup.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/db', databaseRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/backup', backupRouter);
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -68,14 +70,14 @@ app.use((req, res) => {
 });
 
 // local
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server is running on http://localhost:${PORT}`);
-//   console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
-// });
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
+});
 
 // server
-app.listen(3000, '0.0.0.0', () => {
-  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
-  console.log(`📊 API endpoints available at http://0.0.0.0:${PORT}/api`);
-});
+// app.listen(3000, '0.0.0.0', () => {
+//   console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+//   console.log(`📊 API endpoints available at http://0.0.0.0:${PORT}/api`);
+// });
 export default app;

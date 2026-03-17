@@ -188,7 +188,7 @@ export function SalesReport() {
     const headers = ['Order Number', 'Date', 'Customer', 'Type', 'Status', 'Total', 'Paid', 'Balance'];
     const rows = sales.map(s => [
       s.order_number,
-      new Date(s.created_at).toLocaleDateString(),
+      new Date(s.created_at).toLocaleDateString('en-GB'),
       language === 'ku' ? s.customer_name_ku : s.customer_name_en,
       s.sale_type,
       s.status,

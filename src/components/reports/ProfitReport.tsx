@@ -134,26 +134,35 @@ export function ProfitReport() {
 
   const fetchReports = async () => {
     setLoading(true);
+    console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
     try {
+      console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
       let ordersQuery = supabase
         .from('orders')
         .select('*')
         .gte('created_at', dateFrom)
-        .lte('created_at', dateTo + 'T23:59:59')
+        .lte('created_at', dateTo)
         .neq('status', 'draft');
-
+        console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
       if (customerFilter !== 'all') {
         ordersQuery = ordersQuery.eq('customer_id', customerFilter);
       }
 
       const { data: ordersData } = await ordersQuery;
+      console.log('ordersData count:', (ordersData || []).length, 'sample:', JSON.stringify((ordersData || [])[0]));
 
       // Fetch payments for orders
       const orderIds = (ordersData || []).map(o => o.id);
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('order_id, amount_usd')
-        .in('order_id', orderIds);
+      let paymentsData: any[] = [];
+      if (orderIds.length > 0) {
+        const { data: pd } = await supabase
+          .from('payments')
+          .select('order_id, amount_usd')
+          .in('order_id', orderIds)
+          .eq('is_reversed', false)
+          .neq('payment_type', 'reversal');
+        paymentsData = pd || [];
+      }
 
       // Create a map of order_id -> total paid
       const paymentsByOrder = new Map<string, number>();

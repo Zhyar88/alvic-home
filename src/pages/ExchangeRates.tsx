@@ -138,7 +138,7 @@ export function ExchangeRates() {
                 <td className="px-4 py-3 font-bold text-emerald-700">{fmtIQD(rate.rate_installment)}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{rate.set_by || 'System'}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{rate.notes_en || '—'}</td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{new Date(rate.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs">{new Date(rate.created_at).toLocaleDateString('en-GB')}</td>
               </tr>
             ))}
           </tbody>

@@ -319,7 +319,7 @@ export function Customers() {
     },
     {
       key: 'created_at', header: t('date'),
-      render: (c: Customer) => <span className="text-gray-500 text-xs">{new Date(c.created_at).toLocaleDateString()}</span>,
+      render: (c: Customer) => <span className="text-gray-500 text-xs">{new Date(c.created_at).toLocaleDateString('en-GB')}</span>,
       sortable: true,
     },
     {
@@ -624,7 +624,7 @@ export function Customers() {
                             {getDocumentTypeLabel(doc.document_type, language)} · {doc.file_name}
                             {doc.file_size ? ` · ${formatBytes(doc.file_size)}` : ''}
                           </p>
-                          <p className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString('en-GB')}</p>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button

@@ -571,7 +571,7 @@ const ku: typeof en = {
   understairs_cabinet: 'کابینەتی ژێر پلەکان',
   custom_console: 'کۆنسۆلی تایبەتمەند',
   paymentType: 'جۆری پارەدان',
-  deposit: 'پێشپارە',
+  deposit: 'پێشەکی',
   installment: 'قیست',
   final: 'پارەدانی کۆتایی',
   partial: 'بەشێک',

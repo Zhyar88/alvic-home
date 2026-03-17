@@ -234,7 +234,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 font-semibold text-gray-900">{fmt(order.final_total_usd)}</td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-gray-500">{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
                       </tr>
                     ))}
                     {recentOrders.length === 0 && (

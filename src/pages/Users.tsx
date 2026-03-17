@@ -229,7 +229,7 @@ export function Users() {
                 </td>
                 <td className="px-4 py-3 font-mono text-xs">{u.phone || '—'}</td>
                 <td className="px-4 py-3"><Badge variant={u.is_active ? 'success' : 'neutral'}>{u.is_active ? t('active') : t('inactive')}</Badge></td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.created_at).toLocaleDateString('en-GB')}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     {currentProfile?.id !== u.id && (

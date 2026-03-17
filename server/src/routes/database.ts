@@ -16,9 +16,15 @@ console.log('BUILT SQL will be logged below');
 
     Object.keys(req.query).forEach(key => {
       if (key.startsWith('filter_')) {
-        const parts = String(req.query[key]).split(':');
-        if (parts.length === 3) {
-          filters.push({ column: parts[0], op: parts[1], value: parts[2] });
+        const raw = String(req.query[key]);
+        const firstColon = raw.indexOf(':');
+        const secondColon = raw.indexOf(':', firstColon + 1);
+        if (firstColon !== -1 && secondColon !== -1) {
+          filters.push({
+            column: raw.substring(0, firstColon),
+            op: raw.substring(firstColon + 1, secondColon),
+            value: raw.substring(secondColon + 1),
+          });
         }
       } else if (key.startsWith('order_')) {
         const parts = String(req.query[key]).split(':');
@@ -119,10 +125,10 @@ if (select && String(select) !== '*') {
           return `${table}.${f.column} != $${paramIndex++}`;
         } else if (f.op === 'gte') {
           values.push(f.value);
-          return `${table}.${f.column} >= $${paramIndex++}`;
+          return `${table}.${f.column}::date >= $${paramIndex++}::date`;
         } else if (f.op === 'lte') {
           values.push(f.value);
-          return `${table}.${f.column} <= $${paramIndex++}`;
+          return `${table}.${f.column}::date <= $${paramIndex++}::date`;
         } else if (f.op === 'in') {
           const vals = JSON.parse(f.value);
           const placeholders = vals.map((v: any) => {

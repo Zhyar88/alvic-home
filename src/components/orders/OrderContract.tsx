@@ -125,8 +125,8 @@ export function OrderContract({ order, onClose }: OrderContractProps) {
   const dateStr = `${String(today.getDate()).padStart(2, '0')} / ${String(today.getMonth() + 1).padStart(2, '0')} / ${today.getFullYear()}`;
 
   const isInstallment = order.sale_type === 'installment';
-  const deposit = order.deposit_required_usd || order.final_total_usd * 0.5;
-  const remaining = order.final_total_usd - deposit;
+  const deposit = Number(order.deposit_required_usd || 0);
+  const remaining = Math.max(0, Number(order.final_total_usd) - deposit);
   const monthlyAmt =
     order.installment_monthly_amount > 0
       ? order.installment_monthly_amount
@@ -252,9 +252,11 @@ export function OrderContract({ order, onClose }: OrderContractProps) {
       ${row('ناونیشانی کڕیار', customer?.address_ku || customer?.address_en || '—')}
       ${row('بەرواری دەستپێک', fmtDate(order.start_date))}
       ${row('بەرواری کۆتایی', fmtDate(order.end_date))}
+      ${row('نرخی سەرەتایی', fmt(order.total_amount_usd))}
+      ${Number(order.discount_percent) > 0 ? row('داشکاندن', `${order.discount_percent}% — ${fmt(order.discount_amount_usd)}`) : ''}
       ${row('نرخی کۆی گشتی', fmt(order.final_total_usd))}
       ${row('پارەی پێشەکی', fmt(deposit))}
-      ${row('پارەی ماوە', fmt(order.balance_due_usd))}
+      ${row('پارەی ماوە', fmt(Math.max(0, order.final_total_usd - deposit)))}
       ${row('جۆری فرۆشتن', isInstallment ? 'قیستی' : 'نەقد')}
       ${isInstallment ? row('ژمارەی مانگەکان', `${order.installment_months || '—'} مانگ`) : ''}
       ${isInstallment && monthlyAmt > 0 ? row('قسطی مانگانە', fmt(monthlyAmt)) : ''}
@@ -360,9 +362,11 @@ ${itemDetailPages}
                 <TableRow label="ناونیشانی کڕیار" value={customer?.address_ku || customer?.address_en || '—'} />
                 <TableRow label="بەرواری دەستپێک" value={fmtDate(order.start_date)} />
                 <TableRow label="بەرواری کۆتایی" value={fmtDate(order.end_date)} />
+                <TableRow label="نرخی سەرەتایی" value={fmt(order.total_amount_usd)} />
+                {Number(order.discount_percent) > 0 && <TableRow label="داشکاندن" value={`${order.discount_percent}% — ${fmt(order.discount_amount_usd)}`} />}
                 <TableRow label="نرخی کۆی گشتی" value={fmt(order.final_total_usd)} />
                 <TableRow label="پارەی پێشەکی" value={fmt(deposit)} />
-                <TableRow label="پارەی ماوە" value={fmt(order.balance_due_usd)} />
+                <TableRow label="پارەی ماوە" value={fmt(Math.max(0, order.final_total_usd - deposit))} />
                 <TableRow label="جۆری فرۆشتن" value={isInstallment ? 'قیستی' : 'نەقد'} />
                 {isInstallment && <TableRow label="ژمارەی مانگەکان" value={`${order.installment_months || '—'} مانگ`} />}
                 {isInstallment && monthlyAmt > 0 && <TableRow label="قسطی مانگانە" value={fmt(monthlyAmt)} />}

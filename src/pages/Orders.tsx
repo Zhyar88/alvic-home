@@ -11,6 +11,7 @@ import { Pagination } from '../components/ui/Table';
 import { OrderPaymentHistory } from '../components/orders/OrderPaymentHistory';
 import { OrderContract } from '../components/orders/OrderContract';
 import type { Order, Customer, UserProfile, OrderItem, ProductType } from '../types';
+import { DatePicker } from '../components/ui/DatePicker';
 import { supabase } from '../lib/database';
 
 type SortField = 'order_number' | 'customer' | 'status' | 'sale_type' | 'final_total_usd' | 'balance_due_usd' | 'created_at';
@@ -617,7 +618,7 @@ console.log('installment_months:', formData.installment_months);
                     {fmt(order.balance_due_usd)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{new Date(order.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => openDetail(order)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="View Details"><Eye size={14} /></button>
@@ -757,17 +758,15 @@ console.log('installment_months:', formData.installment_months);
               value={String(formData.discount_percent || 0)}
               onChange={e => set('discount_percent', Math.min(5, Number(e.target.value)))}
             />
-            <Input
+            <DatePicker
               label={t('startDate')}
-              type="date"
               value={formData.start_date || ''}
-              onChange={e => set('start_date', e.target.value)}
+              onChange={v => set('start_date', v)}
             />
-            <Input
+            <DatePicker
               label={t('endDate')}
-              type="date"
               value={formData.end_date || ''}
-              onChange={e => set('end_date', e.target.value)}
+              onChange={v => set('end_date', v)}
             />
           </div>
 
@@ -1053,7 +1052,7 @@ function OrderDetailView({ order, language, statusLabels, fmt, t }: { order: Ord
         <Detail label={t('balanceDue')} value={fmt(order.balance_due_usd)} />
         <Detail label={t('depositRequired')} value={fmt(order.deposit_required_usd)} />
         <Detail label={t('discount')} value={`${order.discount_percent}% (${fmt(order.discount_amount_usd)})`} />
-        {order.installment_months > 0 && <Detail label={t('installmentMonths')} value={String(order.installment_months)} />}
+        {order.sale_type === 'installment' && order.installment_months > 0 && <Detail label={t('installmentMonths')} value={String(order.installment_months)} />}
       </div>
 
       {order.items && order.items.length > 0 && (
@@ -1092,7 +1091,7 @@ function OrderDetailView({ order, language, statusLabels, fmt, t }: { order: Ord
           <div className="space-y-2">
             {statusHistory.map((h: Record<string, unknown>) => (
               <div key={h.id as string} className="flex items-center gap-3 text-sm p-2 bg-gray-50 rounded-lg">
-                <span className="text-gray-400 text-xs">{new Date(h.created_at as string).toLocaleDateString()}</span>
+                <span className="text-gray-400 text-xs">{new Date(h.created_at as string).toLocaleDateString('en-GB')}</span>
                 <Badge variant="neutral">{statusLabels[h.from_status as string] || String(h.from_status || '—')}</Badge>
                 <ChevronRight size={12} className="text-gray-400" />
                 <Badge variant="info">{statusLabels[h.to_status as string] || String(h.to_status)}</Badge>

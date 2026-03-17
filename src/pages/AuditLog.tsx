@@ -62,7 +62,7 @@ export function AuditLog() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {[t('timestamp'), 'User', t('action'), t('module'), t('record'), t('details')].map(h => (
+              {['timestamp', 'User', 'action', 'module', 'record', 'details'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}
             </tr>
