@@ -1,10 +1,9 @@
-// Load environment variables FIRST before any other imports
 import './env.js';
 
 import express from 'express';
 import cors from 'cors';
 import { join } from 'path';
-
+import path from "path";
 // Import routes (these will now have env variables available)
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
@@ -68,6 +67,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+// const frontendDist = join(process.cwd(), 'frontend-dist');
+// if (existsSync(frontendDist)) {
+//   app.use(express.static(frontendDist));
+//   app.get('*', (req, res, next) => {
+//     if (req.path.startsWith('/api')) return next();
+//     res.sendFile(join(frontendDist, 'index.html'));
+//   });
+// }
+
 
 // local
 app.listen(PORT, () => {

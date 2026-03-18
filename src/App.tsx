@@ -123,7 +123,7 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
-      <TitleBar />
+    <TitleBar />
       <div className="flex h-screen bg-gray-50 overflow-hidden">
         <Sidebar
           activePage={activePage}
