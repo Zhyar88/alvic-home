@@ -211,6 +211,7 @@ export interface Payment {
   is_reversed: boolean;
   reversed_by?: string;
   reversal_reference_id?: string;
+  accountant_name: string;   // ← add this
   notes_en: string;
   notes_ku: string;
   created_by?: string;

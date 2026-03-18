@@ -14,7 +14,19 @@ import type { LockSession, LockTransaction } from '../types';
 import { supabase } from '../lib/database';
 
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
+const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes("T")) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split("-");
+    return `${day}/${month}/${year}`;
+  };
 function refTypeIcon(ref: string) {
   if (ref === 'payment') return <CreditCard size={13} className="text-emerald-600" />;
   if (ref === 'installment') return <Calendar size={13} className="text-blue-600" />;
@@ -72,7 +84,7 @@ function SessionDetail({ session, onClose }: SessionDetailProps) {
     });
   };
 
-  const closing = (session.opening_balance_usd || 0) + (session.total_income_usd || 0) - (session.total_expenses_usd || 0);
+  const closing = Number(session.opening_balance_usd || 0) + Number(session.total_income_usd || 0) - Number(session.total_expenses_usd || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -80,7 +92,7 @@ function SessionDetail({ session, onClose }: SessionDetailProps) {
       <div className="relative ml-auto w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div>
-            <p className="font-bold text-gray-900 text-lg">{t('sessionPrefix')} {session.session_date}</p>
+            <p className="font-bold text-gray-900 text-lg">{t('sessionPrefix')} {fmtDate(session.session_date)}</p>
             <Badge variant={session.status === 'open' ? 'success' : 'neutral'} className="mt-1">{session.status}</Badge>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
@@ -95,15 +107,15 @@ function SessionDetail({ session, onClose }: SessionDetailProps) {
           </div>
           <div className="p-3 bg-emerald-50 rounded-xl text-center">
             <p className="text-xs text-emerald-600 mb-1">{t('totalIncomeShort')}</p>
-            <p className="font-bold text-emerald-700 text-sm">{fmt(session.total_income_usd || 0)}</p>
+            <p className="font-bold text-emerald-700 text-sm">{fmt(Number(session.total_income_usd) || 0)}</p>
           </div>
           <div className="p-3 bg-red-50 rounded-xl text-center">
             <p className="text-xs text-red-500 mb-1">{t('totalExpensesShort')}</p>
-            <p className="font-bold text-red-700 text-sm">{fmt(session.total_expenses_usd || 0)}</p>
+            <p className="font-bold text-red-700 text-sm">{fmt(Number(session.total_expenses_usd) || 0)}</p>
           </div>
           <div className="p-3 bg-blue-50 rounded-xl text-center">
             <p className="text-xs text-blue-600 mb-1">{t('closingLabel')}</p>
-            <p className="font-bold text-blue-800 text-sm">{fmt(session.status === 'closed' ? (session.closing_balance_usd || 0) : closing)}</p>
+            <p className="font-bold text-blue-800 text-sm">{fmt(session.status === 'closed' ? Number(session.closing_balance_usd || 0) : closing)}</p>
           </div>
         </div>
 
@@ -132,7 +144,7 @@ function SessionDetail({ session, onClose }: SessionDetailProps) {
               const txs = grouped[g];
               if (txs.length === 0) return null;
               const isExpanded = expandedGroups.has(g);
-              const groupTotal = txs.reduce((s, t) => s + (t.transaction_type === 'income' ? t.amount_usd : -t.amount_usd), 0);
+              const groupTotal = txs.reduce((s, t) => s + (t.transaction_type === 'income' ? Number(t.amount_usd || 0) : -Number(t.amount_usd || 0)), 0);
               return (
                 <div key={g} className="border border-gray-100 rounded-xl overflow-hidden">
                   <button
@@ -242,7 +254,7 @@ export function Lock() {
   const handleOpenSession = async () => {
     if (!canCreate) return;
     setSaving(true);
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // returns YYYY-MM-DD in local time
     const existing = sessions.find(s => s.session_date === today);
     if (existing) { setSaving(false); setShowOpenModal(false); return; }
 
@@ -292,7 +304,7 @@ export function Lock() {
     ? (Number(activeSession.opening_balance_usd) || 0) + (Number(activeSession.total_income_usd) || 0) - (Number(activeSession.total_expenses_usd) || 0)
     : 0;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const todaySession = sessions.find(s => s.session_date === today);
   const todayOpenSession = sessions.find(s => s.session_date === today && s.status === 'open');
   const canOpenToday = !todayOpenSession;
@@ -316,7 +328,7 @@ export function Lock() {
                   </div>
                   <div>
                     <p className="font-bold text-emerald-900 text-base">{t('cashRegisterOpen')}</p>
-                    <p className="text-sm text-emerald-700">{activeSession.session_date}</p>
+                    <p className="text-sm text-emerald-700">{fmtDate(activeSession.session_date)}</p>
                   </div>
                 </div>
                 {canUpdate && (
@@ -457,7 +469,7 @@ export function Lock() {
                   className="w-full bg-white rounded-xl border border-gray-100 p-3.5 shadow-sm hover:border-emerald-300 hover:shadow-md transition-all text-left group"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-gray-800">{session.session_date}</span>
+                    <span className="text-sm font-semibold text-gray-800">{fmtDate(session.session_date)}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="neutral" className="text-xs">closed</Badge>
                       <Eye size={13} className="text-gray-300 group-hover:text-emerald-500 transition-colors" />

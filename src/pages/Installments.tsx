@@ -23,7 +23,6 @@ import type { InstallmentEntry, Order, Currency } from "../types";
 import { supabase } from "../lib/database";
 
 const PAGE_SIZE = 20;
-
 type CustomerLite = {
   id: string;
   full_name_en?: string;
@@ -132,8 +131,8 @@ const InstallmentRow = React.memo(function InstallmentRow({
   const daysOverdue =
     effectiveStatus === "overdue"
       ? Math.floor(
-          (new Date(today).getTime() - new Date(entry.due_date).getTime()) / 86400000
-        )
+        (new Date(today).getTime() - new Date(entry.due_date).getTime()) / 86400000
+      )
       : 0;
 
   const remaining = Number(entry.amount_usd || 0) - Number(entry.paid_amount_usd || 0);
@@ -143,12 +142,23 @@ const InstallmentRow = React.memo(function InstallmentRow({
     language === "ku" ? customer?.full_name_ku || "" : customer?.full_name_en || "";
 
   const fmt = (n: number) => `$${Number(n || 0).toFixed(2)}`;
-
+  const fmtDate = (dateStr: string) => {
+    // If it's just a date string "2026-03-11", use it directly
+    // If it's a full ISO string, extract the date in LOCAL time (not UTC)
+    if (dateStr.includes("T")) {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    const [year, month, day] = dateStr.split("-");
+    return `${day}/${month}/${year}`;
+  };
   return (
     <tr
-      className={`transition-colors ${
-        effectiveStatus === "overdue" ? "bg-red-50/30" : ""
-      } ${isSelected ? "bg-emerald-50/40" : "hover:bg-gray-50/60"}`}
+      className={`transition-colors ${effectiveStatus === "overdue" ? "bg-red-50/30" : ""
+        } ${isSelected ? "bg-emerald-50/40" : "hover:bg-gray-50/60"}`}
     >
       <td className="px-4 py-3">
         {effectiveStatus !== "paid" && (
@@ -171,7 +181,7 @@ const InstallmentRow = React.memo(function InstallmentRow({
 
       <td className="px-4 py-3">
         <p className={effectiveStatus === "overdue" ? "text-red-600 font-semibold" : "text-gray-700"}>
-          {entry.due_date}
+          {fmtDate(entry.due_date)}
         </p>
         {daysOverdue > 0 && (
           <p className="text-xs text-red-500">
@@ -292,7 +302,8 @@ export function Installments() {
   const [saving, setSaving] = useState(false);
   const [currentRate, setCurrentRate] = useState(1470);
   const [allOrderEntries, setAllOrderEntries] = useState<EntryWithOrder[]>([]);
-
+  const [payAccountantName, setPayAccountantName] = useState("");
+  const [multiPayAccountantName, setMultiPayAccountantName] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -361,11 +372,11 @@ export function Installments() {
       ...e,
       order: e.order
         ? {
-            ...e.order,
-            customer: e.order.customer_id
-              ? customerMap.get(e.order.customer_id)
-              : undefined,
-          }
+          ...e.order,
+          customer: e.order.customer_id
+            ? customerMap.get(e.order.customer_id)
+            : undefined,
+        }
         : undefined,
     }));
   }, []);
@@ -534,6 +545,7 @@ export function Installments() {
     setPayCurrency("USD");
     setPayDate(todayISO());
     setPayNotes("");
+    setPayAccountantName("");
     setPayDiscountPercent("0");
     setPayDiscountScope("selected");
     setPayAmount(String(Math.max(0, remaining).toFixed(2)));
@@ -941,17 +953,16 @@ export function Installments() {
             discount_percent: discountPct,
             discount_amount_usd: totalDiscountUSD,
             payment_date: payDate,
+            accountant_name: payAccountantName,
             installment_entry_id: selectedEntry.id,
             is_reversed: false,
             notes_en:
               payNotes ||
-              `Installment #${selectedEntry.installment_number}${
-                allocations.length > 1 ? ` (+${allocations.length - 1} more)` : ""
+              `Installment #${selectedEntry.installment_number}${allocations.length > 1 ? ` (+${allocations.length - 1} more)` : ""
               }${discountNote}`,
             notes_ku:
               payNotes ||
-              `قیست #${selectedEntry.installment_number}${
-                allocations.length > 1 ? ` (+${allocations.length - 1})` : ""
+              `قیست #${selectedEntry.installment_number}${allocations.length > 1 ? ` (+${allocations.length - 1})` : ""
               }${discountNoteKu}`,
             created_by: profile?.id,
             created_at: new Date().toISOString(),
@@ -978,14 +989,14 @@ export function Installments() {
             status: a.newStatus,
             ...(a.isReduced
               ? {
-                  amount_usd: a.newAmountUSD,
-                  is_modified: true,
-                  original_amount_usd: a.amount_usd,
-                  modification_reason_en: `${discountPct}% discount applied`,
-                  modification_reason_ku: `${discountPct}% داشکاندن`,
-                  modified_by: profile?.id,
-                  modified_at: new Date().toISOString(),
-                }
+                amount_usd: a.newAmountUSD,
+                is_modified: true,
+                original_amount_usd: a.amount_usd,
+                modification_reason_en: `${discountPct}% discount applied`,
+                modification_reason_ku: `${discountPct}% داشکاندن`,
+                modified_by: profile?.id,
+                modified_at: new Date().toISOString(),
+              }
               : {}),
             updated_at: new Date().toISOString(),
           })
@@ -1081,6 +1092,7 @@ export function Installments() {
     getAmountUSD,
     logTransaction,
     payAmount,
+    payAccountantName,
     payCurrency,
     payDate,
     payDiscountPercent,
@@ -1172,6 +1184,7 @@ export function Installments() {
             payment_date: multiPayDate,
             installment_entry_id: firstEntry.id,
             is_reversed: false,
+            accountant_name: multiPayAccountantName,
             notes_en:
               multiPayNotes ||
               `Multi-installment (${entriesWithDiscount
@@ -1207,14 +1220,14 @@ export function Installments() {
             status: "paid",
             ...(entry.discountForEntry > 0
               ? {
-                  amount_usd: entry.newAmountUSD,
-                  is_modified: true,
-                  original_amount_usd: entry.original_amount_usd ?? entry.amount_usd,
-                  modification_reason_en: `${discountPct}% discount applied`,
-                  modification_reason_ku: `${discountPct}% داشکاندن`,
-                  modified_by: profile?.id,
-                  modified_at: new Date().toISOString(),
-                }
+                amount_usd: entry.newAmountUSD,
+                is_modified: true,
+                original_amount_usd: entry.original_amount_usd ?? entry.amount_usd,
+                modification_reason_en: `${discountPct}% discount applied`,
+                modification_reason_ku: `${discountPct}% داشکاندن`,
+                modified_by: profile?.id,
+                modified_at: new Date().toISOString(),
+              }
               : {}),
             updated_at: new Date().toISOString(),
           })
@@ -1294,6 +1307,7 @@ export function Installments() {
       setShowMultiPayModal(false);
       setSelectedEntries(new Set());
       setMultiPayNotes("");
+      setMultiPayAccountantName("");
       setMultiPayCurrency("USD");
       setMultiPayDiscountPercent("0");
       setMultiPayDiscountScope("selected");
@@ -1311,6 +1325,7 @@ export function Installments() {
     entries,
     fetchEntries,
     logTransaction,
+    multiPayAccountantName,
     multiPayCurrency,
     multiPayDate,
     multiPayDiscountPercent,
@@ -1501,9 +1516,8 @@ export function Installments() {
 
           <button
             onClick={() => setSelectedEntries(new Set())}
-            className={`text-xs text-gray-500 hover:text-gray-700 ${
-              allSelectedAreUnpaid && sameOrder ? "" : "ml-auto"
-            }`}
+            className={`text-xs text-gray-500 hover:text-gray-700 ${allSelectedAreUnpaid && sameOrder ? "" : "ml-auto"
+              }`}
           >
             {t("clearSelection")}
           </button>
@@ -1645,6 +1659,7 @@ export function Installments() {
       <Modal
         isOpen={showPayModal}
         onClose={() => {
+          setPayAccountantName("");
           setShowPayModal(false);
           setPayDiscountPercent("0");
           setAllOrderEntries([]);
@@ -1705,17 +1720,15 @@ export function Installments() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setPayDiscountScope("selected")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${
-                    payDiscountScope === "selected"
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${payDiscountScope === "selected"
                       ? "bg-amber-500 text-white border-amber-500"
                       : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
-                  }`}
+                    }`}
                 >
                   <div className="font-bold">This installment only</div>
                   <div
-                    className={`text-xs mt-0.5 ${
-                      payDiscountScope === "selected" ? "text-amber-100" : "text-amber-500"
-                    }`}
+                    className={`text-xs mt-0.5 ${payDiscountScope === "selected" ? "text-amber-100" : "text-amber-500"
+                      }`}
                   >
                     Discount on #{selectedEntry.installment_number}
                   </div>
@@ -1723,17 +1736,15 @@ export function Installments() {
 
                 <button
                   onClick={() => setPayDiscountScope("all")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${
-                    payDiscountScope === "all"
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${payDiscountScope === "all"
                       ? "bg-amber-500 text-white border-amber-500"
                       : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
-                  }`}
+                    }`}
                 >
                   <div className="font-bold">All unpaid installments</div>
                   <div
-                    className={`text-xs mt-0.5 ${
-                      payDiscountScope === "all" ? "text-amber-100" : "text-amber-500"
-                    }`}
+                    className={`text-xs mt-0.5 ${payDiscountScope === "all" ? "text-amber-100" : "text-amber-500"
+                      }`}
                   >
                     Discount across all remaining
                   </div>
@@ -1745,11 +1756,10 @@ export function Installments() {
                   <button
                     key={pct}
                     onClick={() => setPayDiscountPercent(String(pct))}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                      payDiscountPct === pct
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${payDiscountPct === pct
                         ? "bg-amber-500 text-white"
                         : "bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"
-                    }`}
+                      }`}
                   >
                     {pct === 0 ? "None" : `${pct}%`}
                   </button>
@@ -1821,7 +1831,7 @@ export function Installments() {
                       payDiscountScope === "selected"
                         ? Math.round(rem * (payDiscountPct / 100) * 100) / 100
                         : discountPreview?.scopeEntries.find((x) => x.id === selectedEntry.id)
-                            ?.discountForEntry || 0;
+                          ?.discountForEntry || 0;
 
                     const effectiveRem = rem - discountForSelected;
 
@@ -1921,7 +1931,19 @@ export function Installments() {
               onChange={(e) => setPayDate(e.target.value)}
               required
             />
-
+            
+            <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    {t("accountantName")} <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={payAccountantName}
+    onChange={(e) => setPayAccountantName(e.target.value)}
+    placeholder={t("enterAccountantName")}
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+  />
+</div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("notesOptional")}
@@ -1993,11 +2015,10 @@ export function Installments() {
                       <td className="px-3 py-2 font-bold text-gray-600">#{e.installment_number}</td>
                       <td className="px-3 py-2 text-gray-700">{e.due_date}</td>
                       <td
-                        className={`px-3 py-2 text-right font-semibold ${
-                          multiDiscountPct > 0
+                        className={`px-3 py-2 text-right font-semibold ${multiDiscountPct > 0
                             ? "text-gray-400 line-through"
                             : "text-emerald-700"
-                        }`}
+                          }`}
                       >
                         {fmt(rem)}
                       </td>
@@ -2020,11 +2041,10 @@ export function Installments() {
                     {t("totalRow")}
                   </td>
                   <td
-                    className={`px-3 py-2 text-right font-bold ${
-                      multiDiscountPct > 0
+                    className={`px-3 py-2 text-right font-bold ${multiDiscountPct > 0
                         ? "text-gray-400 line-through"
                         : "text-emerald-800"
-                    }`}
+                      }`}
                   >
                     {fmt(multiPayTotalUSD)}
                   </td>
@@ -2054,19 +2074,17 @@ export function Installments() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setMultiPayDiscountScope("selected")}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${
-                  multiPayDiscountScope === "selected"
+                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${multiPayDiscountScope === "selected"
                     ? "bg-amber-500 text-white border-amber-500"
                     : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
-                }`}
+                  }`}
               >
                 <div className="font-bold">Selected installments only</div>
                 <div
-                  className={`text-xs mt-0.5 ${
-                    multiPayDiscountScope === "selected"
+                  className={`text-xs mt-0.5 ${multiPayDiscountScope === "selected"
                       ? "text-amber-100"
                       : "text-amber-500"
-                  }`}
+                    }`}
                 >
                   Discount on {selectedEntriesData.length} selected
                 </div>
@@ -2074,17 +2092,15 @@ export function Installments() {
 
               <button
                 onClick={() => setMultiPayDiscountScope("all")}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${
-                  multiPayDiscountScope === "all"
+                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-colors text-left ${multiPayDiscountScope === "all"
                     ? "bg-amber-500 text-white border-amber-500"
                     : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
-                }`}
+                  }`}
               >
                 <div className="font-bold">All unpaid installments</div>
                 <div
-                  className={`text-xs mt-0.5 ${
-                    multiPayDiscountScope === "all" ? "text-amber-100" : "text-amber-500"
-                  }`}
+                  className={`text-xs mt-0.5 ${multiPayDiscountScope === "all" ? "text-amber-100" : "text-amber-500"
+                    }`}
                 >
                   Discount across all remaining
                 </div>
@@ -2096,11 +2112,10 @@ export function Installments() {
                 <button
                   key={pct}
                   onClick={() => setMultiPayDiscountPercent(String(pct))}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    multiDiscountPct === pct
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${multiDiscountPct === pct
                       ? "bg-amber-500 text-white"
                       : "bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"
-                  }`}
+                    }`}
                 >
                   {pct === 0 ? "None" : `${pct}%`}
                 </button>
@@ -2211,15 +2226,26 @@ export function Installments() {
           />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t("notesOptional")}
-            </label>
-            <input
-              value={multiPayNotes}
-              onChange={(e) => setMultiPayNotes(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
-            />
-          </div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    {t("accountantName")} <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={payAccountantName}
+    onChange={(e) => setPayAccountantName(e.target.value)}
+    placeholder={t("enterAccountantName")}
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+  />
+</div>
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    {t("notesOptional")}
+  </label>
+  <input
+    value={multiPayNotes}
+    onChange={(e) => setMultiPayNotes(e.target.value)}
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
+  />
+</div>
         </div>
       </Modal>
 

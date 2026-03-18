@@ -83,6 +83,7 @@ export function Payments() {
     payment_date: new Date().toISOString().split("T")[0],
     notes_en: "",
     notes_ku: "",
+    accountant_name: "",   // ← add this
   });
   const [reverseReason, setReverseReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -297,6 +298,7 @@ export function Payments() {
         amount_usd: amountUSD,
         payment_date: formData.payment_date,
         is_reversed: false,
+        accountant_name: formData.accountant_name,
         notes_en: formData.notes_en,
         notes_ku: formData.notes_ku,
         created_by: profile?.id,
@@ -486,6 +488,7 @@ export function Payments() {
       payment_date: new Date().toISOString().split("T")[0],
       notes_en: "",
       notes_ku: "",
+      accountant_name: "",   // ← add this
     });
     // Refresh orders to get updated balance
     supabase
@@ -721,6 +724,9 @@ export function Payments() {
               <Th field="payment_date" label={t("date")} />
               <Th field="created_by" label={t("createdBy")} />
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                Accountant
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
                 {t("actions")}
               </th>
             </tr>
@@ -811,6 +817,9 @@ export function Payments() {
                   <td className="px-4 py-3 text-xs text-gray-600">
                     {(pay.created_by_profile as Record<string, string>)
                       ?.full_name_en || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600">
+                    {pay.accountant_name || "—"}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
@@ -1087,7 +1096,17 @@ export function Payments() {
               )}
             </div>
           )}
-
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t("accountantName")} <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={formData.accountant_name}
+              onChange={(e) => setFormData((p) => ({ ...p, accountant_name: e.target.value }))}
+              placeholder={t("enterAccountantName")}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t("notesEn")}
@@ -1100,6 +1119,7 @@ export function Payments() {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
             />
           </div>
+          
           <div dir="rtl">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t("notesKu")}

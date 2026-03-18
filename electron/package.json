@@ -1,0 +1,45 @@
+{
+  "name": "alvic-home",
+  "version": "1.0.0",
+  "description": "Alvic Home - Custom Furniture Management",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.alvichome.app",
+    "productName": "Alvic Home",
+    "copyright": "Copyright © 2026 Alvic Home",
+    "win": {
+      "target": "nsis",
+      "icon": "logo.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.icns"
+    },
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "backend",
+        "filter": [
+          "dist/**",
+          "frontend-dist/**",
+          ".env",
+          "node_modules/**",
+          "package.json"
+        ]
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/**"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

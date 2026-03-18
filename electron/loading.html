@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f3d33;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+    .logo {
+      font-size: 48px;
+      font-weight: 900;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #86efac;
+      margin-bottom: 40px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .status {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #86efac;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="logo">ALVIC HOME</div>
+  <div class="subtitle">Custom Furniture Management</div>
+  <div class="spinner"></div>
+  <div class="status">Starting application...</div>
+</body>
+</html>

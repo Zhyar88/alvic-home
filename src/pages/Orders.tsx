@@ -106,6 +106,18 @@ export function Orders() {
     notes_en: '',
     notes_ku: '',
   });
+  const [maxDiscountAllowed, setMaxDiscountAllowed] = useState(5);
+
+useEffect(() => {
+  supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'max_discount_percent')
+    .single()
+    .then(({ data }) => {
+      if (data?.value) setMaxDiscountAllowed(Number(data.value));
+    });
+}, []);
   const [depositRates, setDepositRates] = useState({ cash: 0.6, installment: 0.5 });
 
   useEffect(() => {
@@ -807,13 +819,13 @@ export function Orders() {
               </div>
             )}
             <Input
-              label={t('discountPercent') + ' (max 5%)'}
+              label={t('discountPercent') + ' (max ' + maxDiscountAllowed +'%)'}
               type="number"
               min={0}
-              max={5}
+              max={maxDiscountAllowed}
               step={0.1}
               value={String(formData.discount_percent || 0)}
-              onChange={e => set('discount_percent', Math.min(5, Number(e.target.value)))}
+              onChange={e => set('discount_percent', Math.min(maxDiscountAllowed, Number(e.target.value)))}
             />
             <DatePicker
               label={t('startDate')}

@@ -7,6 +7,7 @@ interface PaymentReceiptProps {
   payment: Payment & {
     order?: Order & { customer?: Customer };
     created_by_profile?: UserProfile;
+    accountant_name?: string;
   };
   balanceDue: number;
   onClose: () => void;
@@ -14,7 +15,11 @@ interface PaymentReceiptProps {
 
 function fmtDate(d?: string) {
   if (!d) return '—';
-  return d.split('T')[0].split('-').reverse().join(' / ');
+  const date = new Date(d);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day} / ${month} / ${year}`;
 }
 
 function fmtUSD(n: number) {
@@ -44,6 +49,7 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
   const employee = payment.created_by_profile;
   const customerName = customer?.full_name_ku || customer?.full_name_en || '—';
   const employeeName = employee?.full_name_ku || employee?.full_name_en || '—';
+  const accountantName = (payment as any).accountant_name || employeeName || '—';
 
   const today = new Date();
   const dateStr = `${String(today.getDate()).padStart(2, '0')} / ${String(today.getMonth() + 1).padStart(2, '0')} / ${today.getFullYear()}`;
@@ -53,9 +59,9 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
     : fmtUSD(payment.amount_usd);
 
   const handlePrint = () => {
-    const logoSrc = logoBase64 || `${window.location.origin}${logoUrl}`;
+  const logoSrc = logoBase64 || `${window.location.origin}${logoUrl}`;
 
-    const html = `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ckb">
 <head>
 <meta charset="UTF-8"/>
@@ -96,7 +102,7 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
       </tr>
       <tr>
         <td style="padding:3mm 4mm;background:#f0f4e8;font-weight:700;font-size:10pt;border-bottom:1px solid #dde8c8">ناوی ژمێریار</td>
-        <td style="padding:3mm 4mm;font-weight:700;font-size:10pt;color:#0f3d33;border-bottom:1px solid #dde8c8">${employeeName}</td>
+        <td style="padding:3mm 4mm;font-weight:700;font-size:10pt;color:#0f3d33;border-bottom:1px solid #dde8c8">${accountantName}</td>
       </tr>
       <tr>
         <td style="padding:3mm 4mm;background:#f0f4e8;font-weight:700;font-size:10pt;border-bottom:1px solid #dde8c8">جۆری پارەدان</td>
@@ -143,13 +149,32 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
 </body>
 </html>`;
 
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) return;
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 500);
-  };
+  // Use hidden iframe instead of new tab
+  const existingIframe = document.getElementById('print-iframe');
+  if (existingIframe) existingIframe.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-iframe';
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) return;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => iframe.remove(), 1000);
+  }, 500);
+};
 
   const rowStyle: React.CSSProperties = {
     display: 'grid', gridTemplateColumns: '45% 55%', borderBottom: '1px solid #dde8c8',
@@ -217,7 +242,7 @@ export function PaymentReceipt({ payment, balanceDue, onClose }: PaymentReceiptP
                   </tr>
                   <tr>
                     <td style={{ ...labelStyle, borderBottom: '1px solid #dde8c8', width: '45%' }}>ناوی ژمێریار</td>
-                    <td style={{ ...valueStyle, borderBottom: '1px solid #dde8c8' }}>{employeeName}</td>
+                    <td style={{ ...valueStyle, borderBottom: '1px solid #dde8c8' }}>{accountantName}</td>
                   </tr>
                   <tr>
                     <td style={{ ...labelStyle, borderBottom: '1px solid #dde8c8', width: '45%' }}>جۆری پارەدان</td>
