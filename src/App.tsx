@@ -20,6 +20,7 @@ import { Settings } from './pages/Settings';
 import { ShieldOff } from 'lucide-react';
 import { CashRegisterProvider } from './contexts/CashRegisterContext';
 import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
+import { TitleBar } from './components/layout/TitleBar';
 
 type Page =
   | 'dashboard' | 'orders' | 'customers' | 'payments'
@@ -39,7 +40,7 @@ const PAGE_TITLES: Record<Page, string> = {
   users: 'Users',
   roles: 'Roles & Permissions',
   audit_log: 'Audit Log',
-   settings: 'Settings',
+  settings: 'Settings',
 };
 
 const PAGE_PERMISSION: Partial<Record<Page, { module: string; action: string }>> = {
@@ -95,7 +96,7 @@ function AppContent() {
   }
 
   const canAccessPage = (page: Page): boolean => {
-  const perm = PAGE_PERMISSION[page];
+    const perm = PAGE_PERMISSION[page];
     if (!perm) return true; // ← dashboard has no perm so always returns true
     return hasPermission(perm.module, perm.action);
   };
@@ -121,21 +122,24 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar
-        activePage={activePage}
-        onNavigate={(page) => setActivePage(page)}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(prev => !prev)}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header
-          title={PAGE_TITLES[activePage]}
-          onMenuToggle={() => setSidebarOpen(prev => !prev)}
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+      <TitleBar />
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <Sidebar
+          activePage={activePage}
+          onNavigate={(page) => setActivePage(page)}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(prev => !prev)}
         />
-        <main className="flex-1 overflow-y-auto">
-          {renderPage()}
-        </main>
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Header
+            title={PAGE_TITLES[activePage]}
+            onMenuToggle={() => setSidebarOpen(prev => !prev)}
+          />
+          <main className="flex-1 overflow-y-auto">
+            {renderPage()}
+          </main>
+        </div>
       </div>
     </div>
   );
