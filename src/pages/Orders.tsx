@@ -289,7 +289,7 @@ useEffect(() => {
     if (saving) return;
     setSaving(true);
 
-    const dp = Math.min(Number(formData.discount_percent || 0), 5);
+    const dp = Math.min(Number(formData.discount_percent || 0), maxDiscountAllowed);
     const totals = calcTotals(items, dp, formData.sale_type || 'cash');
 
     const orderNum = selectedOrder?.order_number || await generateOrderNumber();
@@ -531,7 +531,7 @@ useEffect(() => {
 
   const isKitchenBedroom = (type: ProductType) => type === 'kitchen_cabinet' || type === 'bedroom_cabinet';
 
-  const currentTotals = calcTotals(items, Math.min(Number(formData.discount_percent || 0), 5), formData.sale_type || 'cash');
+  const currentTotals = calcTotals(items, Math.min(Number(formData.discount_percent || 0), maxDiscountAllowed), formData.sale_type || 'cash');
   const fmt = (n: number) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const installmentPreview = (() => {
