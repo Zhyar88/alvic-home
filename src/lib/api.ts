@@ -48,6 +48,11 @@ export const authAPI = {
     setAuthToken(data.token);
     return data;
   },
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetchAPI('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 
   register: async (userData: any) => {
     const data = await fetchAPI('/auth/register', {
@@ -163,6 +168,7 @@ export const exchangeRatesAPI = {
   }),
 };
 
+
 // Lock Sessions API
 export const lockSessionsAPI = {
   getAll: () => fetchAPI('/lock-sessions'),
@@ -204,4 +210,6 @@ export const auditAPI = {
   },
   getByRecord: (tableName: string, recordId: string) =>
     fetchAPI(`/audit/record/${tableName}/${recordId}`),
+  
 };
+

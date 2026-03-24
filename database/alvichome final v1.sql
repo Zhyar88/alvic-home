@@ -713,3 +713,7 @@ SELECT setval('public.payment_number_seq', 1000, false);
 INSERT INTO public.settings (key, value, updated_at)
 VALUES ('max_discount_percent', '5', now())
 ON CONFLICT (key) DO NOTHING;
+
+ALTER TABLE orders DROP CONSTRAINT orders_discount_percent_check;
+ALTER TABLE orders ADD CONSTRAINT orders_discount_percent_check 
+  CHECK (discount_percent >= 0 AND discount_percent <= 100);

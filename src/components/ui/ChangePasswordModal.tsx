@@ -3,7 +3,7 @@ import { Eye, EyeOff, Lock } from 'lucide-react';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
-
+import { authAPI } from '../../lib/api';
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,7 +19,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
+   
   const handleClose = () => {
     setCurrentPassword('');
     setNewPassword('');
@@ -30,6 +30,9 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
     onClose();
   };
 
+  // adjust path if needed
+
+  // Replace the entire handleSubmit:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -48,8 +51,14 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
     }
 
     setLoading(true);
-    setError('Password change functionality requires backend API implementation.');
-    setLoading(false);
+    try {
+      await authAPI.changePassword(currentPassword, newPassword);
+      setSuccess(true);
+    } catch (error: any) {
+      setError(error.message || 'Failed to change password.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const EyeToggle = ({ show, onToggle }: { show: boolean; onToggle: () => void }) => (

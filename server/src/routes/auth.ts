@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import pool, { query } from '../config/database.js';
 import dotenv from 'dotenv';
+import { verifyToken } from '../middleware/auth.js';
 
 dotenv.config();
 
@@ -116,3 +117,43 @@ router.post('/login', async (req: Request<{}, {}, SignInBody>, res: Response) =>
 });
 
 export default router;
+
+// update password
+// Change password (authenticated user changes their own password)
+router.post('/change-password', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = (req as any).user?.id; // set by verifyToken middleware
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password are required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    // Fetch current password hash
+    const result = await query(
+      `SELECT password_hash FROM auth_users WHERE id = $1`,
+      [userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const match = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await query(
+      `UPDATE auth_users SET password_hash = $1 WHERE id = $2`,
+      [newHash, userId]
+    );
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
