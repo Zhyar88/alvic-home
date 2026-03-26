@@ -16,6 +16,7 @@ npm link node-windows
 node install-frontend-service.cjs
 
 <!-- add this to server/index.tx -->
+import { existsSync } from 'fs';
 const frontendDist = join(process.cwd(), 'frontend-dist');
 if (existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
@@ -24,6 +25,7 @@ if (existsSync(frontendDist)) {
     res.sendFile(join(frontendDist, 'index.html'));
   });
 }
+
 
 <!-- Install Electron -->
 CD clectron

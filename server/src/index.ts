@@ -68,14 +68,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// const frontendDist = join(process.cwd(), 'frontend-dist');
-// if (existsSync(frontendDist)) {
-//   app.use(express.static(frontendDist));
-//   app.get('*', (req, res, next) => {
-//     if (req.path.startsWith('/api')) return next();
-//     res.sendFile(join(frontendDist, 'index.html'));
-//   });
-// }
+import { existsSync } from 'fs';
+const frontendDist = join(process.cwd(), 'frontend-dist');
+if (existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(join(frontendDist, 'index.html'));
+  });
+}
 
 
 // local
