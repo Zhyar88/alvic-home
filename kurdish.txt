@@ -1,3 +1,48 @@
+orders:
+
+const PRODUCT_TYPES: { value: ProductType; labelEn: string; labelKu: string }[] = [
+  { value: 'kitchen_cabinet', labelEn: 'Kitchen Cabinet', labelKu: 'کابینەتی چێشتخانە' },
+  { value: 'bedroom_cabinet', labelEn: 'Bedroom Cabinet', labelKu: 'کابینەتی ژووری خەو' },
+  { value: 'tv_console', labelEn: 'TV Console', labelKu: 'کۆنسۆلی تەلەڤزیۆن' },
+  { value: 'shoe_cabinet', labelEn: 'Shoe Cabinet', labelKu: 'کابینەتی پێڵاو' },
+  { value: 'understairs_cabinet', labelEn: 'Understairs Cabinet', labelKu: 'کابینەتی ژێر پلەکان' },
+  { value: 'custom_console', labelEn: 'Custom Console', labelKu: 'کۆنسۆلی تایبەتمەند' },
+];
+const BEDROOM_FIELDS = [
+  { key: 'upper_cabinet_door_color', enLabel: 'Upper Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی سەروو' },
+  { key: 'lower_cabinet_door_color', enLabel: 'Lower Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی خوارەوە' },
+  { key: 'cabinet_body_color', enLabel: 'Cabinet Body Color', kuLabel: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'naxsh', enLabel: 'Naxsh', kuLabel: 'نەخش' },
+  { key: 'crown', enLabel: 'Crown', kuLabel: 'کراون' },
+  { key: 'handle_type', enLabel: 'Handle Type', kuLabel: 'جۆری دەستگیرە' },
+  { key: 'glass_color', enLabel: 'Glass Color', kuLabel: 'ڕەنگی شووشە' },
+  { key: 'baza', enLabel: 'Baza', kuLabel: 'بازا' },
+  { key: 'liner_led', enLabel: 'Liner LED', kuLabel: 'لاینەر LED' },
+];
+
+const KITCHEN_FIELDS = [
+  { key: 'upper_cabinet_door_color', enLabel: 'Upper Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی سەروو' },
+  { key: 'lower_cabinet_door_color', enLabel: 'Lower Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی خوارەوە' },
+  { key: 'cabinet_body_color', enLabel: 'Cabinet Body Color', kuLabel: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'naxsh', enLabel: 'Naxsh', kuLabel: 'نەخش' },
+  { key: 'crown', enLabel: 'Crown', kuLabel: 'کراون' },
+  { key: 'kiler', enLabel: 'Kiler', kuLabel: 'کیلەر' },
+  { key: 'cabinet_top', enLabel: 'Cabinet Top', kuLabel: 'سەری کابینەت' },
+  { key: 'stove', enLabel: 'Stove', kuLabel: 'ئۆجاق' },
+  { key: 'countertop', enLabel: 'Countertop (Stone)', kuLabel: 'سەری کانتەر (بەرد)' },
+  { key: 'liner_led', enLabel: 'Liner LED', kuLabel: 'لاینەر LED' },
+  { key: 'suction_device', enLabel: 'Suction Device', kuLabel: 'ئامێری مێژانەوە' },
+  { key: 'microwave', enLabel: 'Microwave', kuLabel: 'مایکرۆویڤ' },
+  { key: 'mujameda', enLabel: 'Mujameda', kuLabel: 'موجەمەدا' },
+  { key: 'handle_type', enLabel: 'Handle Type', kuLabel: 'جۆری دەستگیرە' },
+  { key: 'oven', enLabel: 'Oven', kuLabel: 'تەنوور' },
+  { key: 'fridge', enLabel: 'Fridge', kuLabel: 'بریکێل' },
+  { key: 'washer', enLabel: 'Washer', kuLabel: 'مەکینەی شستن' },
+  { key: 'baza', enLabel: 'Baza', kuLabel: 'بازا' },
+  { key: 'glass_color', enLabel: 'Glass Color', kuLabel: 'ڕەنگی شووشە' },
+];
+
+dictionary:
 export type TranslationKey = keyof typeof en;
 
 const en = {
@@ -1120,3 +1165,62 @@ export const translations = { en, ku };
 export function t(key: TranslationKey, lang: 'en' | 'ku'): string {
   return translations[lang][key] ?? translations.en[key] ?? key;
 }
+// manufactuting 
+const KITCHEN_BEDROOM_FIELDS = [
+  { key: 'upper_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی سەرووی' },
+  { key: 'lower_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی خوارووی' },
+  { key: 'cabinet_body_color_ku', label: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'naxsh_ku', label: 'نەخش' },
+  { key: 'crown_ku', label: 'کراون' },
+  { key: 'kiler_ku', label: 'کیلەر' },
+  { key: 'cabinet_top_ku', label: 'سەری کابینەت' },
+  { key: 'stove_ku', label: 'تەختەی خواردنپێژ' },
+  { key: 'countertop_ku', label: 'کاونتەرتۆپ' },
+  { key: 'liner_led_ku', label: 'لاینەر LED' },
+  { key: 'suction_device_ku', label: 'دەزگای مێژووی' },
+  { key: 'microwave_ku', label: 'مایکرۆوێڤ' },
+  { key: 'mujameda_ku', label: 'موجەمەدە' },
+  { key: 'handle_type_ku', label: 'جۆری دەستگیرە' },
+  { key: 'oven_ku', label: 'فوورن' },
+  { key: 'fridge_ku', label: 'فریج' },
+  { key: 'washer_ku', label: 'مەکینەی مەسک' },
+  { key: 'baza_ku', label: 'بازا' },
+  { key: 'glass_color_ku', label: 'ڕەنگی شووشە' },
+];
+
+const CONSOLE_FIELDS = [
+  { key: 'measurement_ku', label: 'پێوانە' },
+  { key: 'color_ku', label: 'ڕەنگ' },
+  { key: 'material', label: 'مادە' },
+];
+
+contract
+
+const KITCHEN_BEDROOM_FIELDS: { key: keyof KitchenBedroomConfig; label: string }[] = [
+  { key: 'upper_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی سەرووی' },
+  { key: 'lower_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی خوارووی' },
+  { key: 'cabinet_body_color_ku', label: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'naxsh_ku', label: 'نەخش' },
+  { key: 'crown_ku', label: 'کراون' },
+  { key: 'kiler_ku', label: 'کیلەر' },
+  { key: 'cabinet_top_ku', label: 'سەری کابینەت' },
+  { key: 'stove_ku', label: 'تەختەی خواردنپێژ' },
+  { key: 'countertop_ku', label: 'کاونتەرتۆپ' },
+  { key: 'liner_led_ku', label: 'لاینەر LED' },
+  { key: 'suction_device_ku', label: 'دەزگای مێژووی' },
+  { key: 'microwave_ku', label: 'مایکرۆوێڤ' },
+  { key: 'mujameda_ku', label: 'موجەمەدە' },
+  { key: 'handle_type_ku', label: 'جۆری دەستگیرە' },
+  { key: 'oven_ku', label: 'فوورن' },
+  { key: 'fridge_ku', label: 'فریج' },
+  { key: 'washer_ku', label: 'مەکینەی مەسک' },
+  { key: 'baza_ku', label: 'بازا' },
+  { key: 'glass_color_ku', label: 'ڕەنگی شووشە' },
+];
+
+const CONSOLE_FIELDS: { key: keyof ConsoleConfig; label: string }[] = [
+  { key: 'measurement_ku', label: 'پێوانە' },
+  { key: 'color_ku', label: 'ڕەنگ' },
+  { key: 'material', label: 'مادە' },
+];
+

@@ -21,7 +21,7 @@ import { Badge, InstallmentStatusBadge } from "../components/ui/Badge";
 import { Pagination } from "../components/ui/Table";
 import type { InstallmentEntry, Order, Currency } from "../types";
 import { supabase } from "../lib/database";
-
+import { logAudit } from "../lib/auditLog";
 const PAGE_SIZE = 20;
 type CustomerLite = {
   id: string;
@@ -618,13 +618,13 @@ export function Installments() {
   }, [entries, selectedEntries]);
 
   const totalStats = useMemo(
-    () => ({
-      total: entries.reduce((s, e) => s + Number(e.amount_usd || 0), 0),
-      paid: entries.reduce((s, e) => s + Number(e.paid_amount_usd || 0), 0),
-      overdue: entries.filter((e) => e.status === "overdue").length,
-    }),
-    [entries]
-  );
+  () => ({
+    total: entries.reduce((s, e) => s + (Number(e.amount_usd || 0) - Number(e.paid_amount_usd || 0)), 0),
+    paid: entries.reduce((s, e) => s + Number(e.paid_amount_usd || 0), 0),
+    overdue: entries.filter((e) => e.status === "overdue").length,
+  }),
+  [entries]
+);
 
   const selectedEntriesData = useMemo(
     () => entries.filter((e) => selectedEntries.has(e.id) && e.status !== "paid"),
@@ -1303,7 +1303,26 @@ export function Installments() {
           created_by: profile?.id,
         });
       }
+await logAudit({
+        userId: profile?.id,
+        userNameEn: profile?.full_name_en,
+        userNameKu: profile?.full_name_ku,
+        action: 'MULTI_PAY_INSTALLMENT',
+        module: 'installments',
+        recordId: payData?.id || '',
+        newValues: {
+          payment_number: paymentNumber,
+          count: entriesWithDiscount.length,
+          installments: entriesWithDiscount.map(e => `#${e.installment_number}`).join(', '),
+          total_usd: totalUSD,
+          discount_percent: discountPct,
+          discount_amount_usd: totalDiscountUSD,
+          order_id: orderId,
+          currency: multiPayCurrency,
+        },
+      });
 
+      setShowMultiPayModal(false);
       setShowMultiPayModal(false);
       setSelectedEntries(new Set());
       setMultiPayNotes("");

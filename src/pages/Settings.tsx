@@ -3,7 +3,7 @@ import { Settings as SettingsIcon, Save } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/database";
-
+import { logAudit } from "../lib/auditLog";
 export function Settings() {
   const { language } = useLanguage();
   const { profile } = useAuth();
@@ -28,82 +28,117 @@ export function Settings() {
   }, []);
 
   const handleSave = async () => {
-    setSaving(true);
-    await supabase
-      .from("settings")
-      .update({ value: cashRate, updated_at: new Date().toISOString() })
-      .eq("key", "deposit_rate_cash");
-    await supabase
-      .from("settings")
-      .update({ value: installmentRate, updated_at: new Date().toISOString() })
-      .eq("key", "deposit_rate_installment");
-    await supabase.from('settings').update({ value: maxDiscount, updated_at: new Date().toISOString() }).eq('key', 'max_discount_percent');
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  setSaving(true);
+  await supabase
+    .from("settings")
+    .update({ value: cashRate, updated_at: new Date().toISOString() })
+    .eq("key", "deposit_rate_cash");
+  await supabase
+    .from("settings")
+    .update({ value: installmentRate, updated_at: new Date().toISOString() })
+    .eq("key", "deposit_rate_installment");
+  await supabase.from('settings').update({ value: maxDiscount, updated_at: new Date().toISOString() }).eq('key', 'max_discount_percent');
+
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: 'UPDATE_SETTINGS',
+    module: 'settings',
+    newValues: {
+      deposit_rate_cash: cashRate,
+      deposit_rate_installment: installmentRate,
+      max_discount_percent: maxDiscount,
+    },
+  });
+
+  setSaving(false);
+  setSaved(true);
+  setTimeout(() => setSaved(false), 2000);
+};
 
   const handleBackup = async () => {
-    setBackingUp(true);
+  setBackingUp(true);
 
-    try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        alert(language === 'ku' ? 'تکایە دووبارە بچۆرەوە' : 'Please log in again.');
-        setBackingUp(false);
-        return;
-      }
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-      const response = await fetch(`${apiUrl}/backup/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        let message = 'Backup failed';
-        try {
-          const err = await response.json();
-          message = err.error || message;
-        } catch { }
-        throw new Error(message);
-      }
-
-      const blob = await response.blob();
-
-      if (blob.size === 0) {
-        throw new Error('Backup file is empty');
-      }
-
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const now = new Date();
-      const pad = (n: number) => String(n).padStart(2, '0');
-      let fileName = `alvichome-backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.sql`;
-      
-
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match) fileName = match[1];
-      }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(
-        language === 'ku'
-          ? `هەڵە لە پاشەکەوتکردندا: ${err.message}`
-          : `Backup failed: ${err.message}`
-      );
-    } finally {
+  try {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      alert(language === 'ku' ? 'تکایە دووبارە بچۆرەوە' : 'Please log in again.');
       setBackingUp(false);
+      return;
     }
-  };
+
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+    const response = await fetch(`${apiUrl}/backup/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      let message = 'Backup failed';
+      try {
+        const err = await response.json();
+        message = err.error || message;
+      } catch { }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+
+    if (blob.size === 0) {
+      throw new Error('Backup file is empty');
+    }
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    let fileName = `alvichome-backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.sql`;
+
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match) fileName = match[1];
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    await logAudit({
+      userId: profile?.id,
+      userNameEn: profile?.full_name_en,
+      userNameKu: profile?.full_name_ku,
+      action: 'DOWNLOAD_BACKUP',
+      module: 'settings',
+      newValues: { file_name: fileName },
+    });
+
+  } catch (err: any) {
+    alert(
+      language === 'ku'
+        ? `هەڵە لە پاشەکەوتکردندا: ${err.message}`
+        : `Backup failed: ${err.message}`
+    );
+  } finally {
+    setBackingUp(false);
+  }
+};
+  if (profile?.role !== 'administrator') {
+    return (
+      <div className="p-4 lg:p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+          <SettingsIcon size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">
+            {language === 'ku' ? 'تۆ مۆڵەتت نییە بۆ ئەم بەشە' : 'You do not have permission to access this page'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-6 space-y-5">

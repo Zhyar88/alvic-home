@@ -20,7 +20,7 @@ import { Badge } from "../components/ui/Badge";
 import { Pagination } from "../components/ui/Table";
 import type { Payment, Order, Customer, Currency } from "../types";
 import { supabase } from "../lib/database";
-
+import { logAudit } from '../lib/auditLog';
 const PAGE_SIZE = 20;
 
 type SortField =
@@ -499,6 +499,15 @@ export function Payments() {
       .order("created_at", { ascending: false })
       .then(({ data }) => setOrders((data || []) as Order[]));
     fetchPayments();
+    await logAudit({
+      userId: profile?.id,
+      userNameEn: profile?.full_name_en,
+      userNameKu: profile?.full_name_ku,
+      action: 'CREATE_PAYMENT',
+      module: 'payments',
+      recordId: payData?.id,
+      newValues: { payment_number: paymentNumber, amount_usd: amountUSD, payment_type: formData.payment_type, order_id: formData.order_id },
+    });
   };
 
   const handleReverse = async () => {
@@ -602,6 +611,7 @@ export function Payments() {
     setShowReverseModal(false);
     setReverseReason("");
     fetchPayments();
+
   };
 
   const fmt = (n: number) =>
@@ -1119,7 +1129,7 @@ export function Payments() {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
             />
           </div>
-          
+
           <div dir="rtl">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t("notesKu")}

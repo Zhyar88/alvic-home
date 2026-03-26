@@ -10,7 +10,7 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Table';
 import type { Expense, ExpenseCategory, Order, Currency } from '../types';
 import { supabase } from '../lib/database';
-
+import { logAudit } from '../lib/auditLog';
 const PAGE_SIZE = 20;
 
 export function Expenses() {
@@ -78,25 +78,25 @@ export function Expenses() {
 
   const handleSave = async () => {
     console.log('handleSave called');
-  console.log('description_en:', formData.description_en);
-  console.log('description_ku:', formData.description_ku);
-  console.log('activeSession:', activeSession);
-  console.log('selectedExpense:', selectedExpense);
-  if (!formData.description_en && !formData.description_ku) {
-    console.log('BLOCKED: no description');
-    return;
-  }
-  if (!selectedExpense && !activeSession) {
-    console.log('BLOCKED: no session and no selected expense');
-    return;
-  }
+    console.log('description_en:', formData.description_en);
+    console.log('description_ku:', formData.description_ku);
+    console.log('activeSession:', activeSession);
+    console.log('selectedExpense:', selectedExpense);
+    if (!formData.description_en && !formData.description_ku) {
+      console.log('BLOCKED: no description');
+      return;
+    }
+    if (!selectedExpense && !activeSession) {
+      console.log('BLOCKED: no session and no selected expense');
+      return;
+    }
     if (!selectedExpense && !activeSession) return;  // ← THIS LINE
     setSaving(true);
-console.log('past checks, saving...');
-const cat = categories.find(c => c.id === formData.category_id);
-const amtUSD = getAmountUSD();
-console.log('amtUSD:', amtUSD);
-console.log('amount_in_currency:', formData.amount_in_currency);
+    console.log('past checks, saving...');
+    const cat = categories.find(c => c.id === formData.category_id);
+    const amtUSD = getAmountUSD();
+    console.log('amtUSD:', amtUSD);
+    console.log('amount_in_currency:', formData.amount_in_currency);
     const expNum = `EXP-${Date.now()}`;
     const payload = {
       expense_number: selectedExpense?.expense_number || expNum,
@@ -121,14 +121,14 @@ console.log('amount_in_currency:', formData.amount_in_currency);
       await supabase.from('expenses').update(payload).eq('id', selectedExpense.id);
     } else {
       console.log('inserting expense payload:', payload);
-const { data: insertedRows } = await supabase
-  .from('expenses')
-  .insert([{ ...payload, created_at: new Date().toISOString() }]);
+      const { data: insertedRows } = await supabase
+        .from('expenses')
+        .insert([{ ...payload, created_at: new Date().toISOString() }]);
 
-const expData = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
-console.log('insert result:', expData);
+      const expData = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+      console.log('insert result:', expData);
 
-if (activeSession && expData?.id && amtUSD > 0) {
+      if (activeSession && expData?.id && amtUSD > 0) {
         await logTransaction({
           session_id: activeSession.id,
           transaction_type: 'expense',
@@ -148,14 +148,51 @@ if (activeSession && expData?.id && amtUSD > 0) {
     setSaving(false);
     setShowModal(false);
     fetchExpenses();
+    await logAudit({
+  userId: profile?.id,
+  userNameEn: profile?.full_name_en,
+  userNameKu: profile?.full_name_ku,
+  action: selectedExpense ? 'UPDATE_EXPENSE' : 'CREATE_EXPENSE',
+  module: 'expenses',
+  recordId: selectedExpense?.id || '',
+  newValues: {
+    expense_number: payload.expense_number,
+    amount_usd: amtUSD,
+    category: cat?.name_en || '',
+    description: formData.description_en || formData.description_ku,
+  },
+  oldValues: selectedExpense ? {
+    amount_usd: selectedExpense.amount_usd,
+    description: selectedExpense.description_en,
+  } : {},
+});
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('confirmDelete'))) return;
-    await supabase.from('expenses').delete().eq('id', id);
-    fetchExpenses();
-  };
+  if (!confirm(t('confirmDelete'))) return;
 
+  // Fetch expense details before deleting for audit log
+  const expense = expenses.find(e => e.id === id);
+
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: 'DELETE_EXPENSE',
+    module: 'expenses',
+    recordId: id,
+    oldValues: expense ? {
+      expense_number: expense.expense_number,
+      amount_usd: expense.amount_usd,
+      description: expense.description_en || expense.description_ku,
+      category: expense.category_name_en,
+    } : {},
+    newValues: {},
+  });
+
+  await supabase.from('expenses').delete().eq('id', id);
+  fetchExpenses();
+};
   const openCreate = () => {
     setFormData({ category_id: '', description_en: '', description_ku: '', currency: 'USD', amount_in_currency: '', expense_date: new Date().toISOString().split('T')[0], linked_order_id: '', notes_en: '', notes_ku: '' });
     setSelectedExpense(null);
@@ -181,7 +218,7 @@ if (activeSession && expData?.id && amtUSD > 0) {
 
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`;
   const totalAmount = expenses.reduce((s, e) => s + e.amount_usd, 0);
-const fmtDate = (dateStr: string) => {
+  const fmtDate = (dateStr: string) => {
     // If it's just a date string "2026-03-11", use it directly
     // If it's a full ISO string, extract the date in LOCAL time (not UTC)
     if (dateStr.includes('T')) {

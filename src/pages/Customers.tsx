@@ -10,7 +10,7 @@ import { Badge } from '../components/ui/Badge';
 import { Table, Pagination } from '../components/ui/Table';
 import type { Customer, CustomerDocument, DocumentType } from '../types';
 import { supabase } from '../lib/database';
-
+import { logAudit } from '../lib/auditLog';
 const PAGE_SIZE = 15;
 
 const DOCUMENT_TYPES: { value: DocumentType; labelEn: string; labelKu: string }[] = [
@@ -238,6 +238,17 @@ export function Customers() {
     setSaving(false);
     setShowModal(false);
     fetchCustomers();
+   await logAudit({
+  userId: profile?.id,
+  userNameEn: profile?.full_name_en,
+  userNameKu: profile?.full_name_ku,
+  action: selectedCustomer ? 'UPDATE_CUSTOMER' : 'CREATE_CUSTOMER',
+  module: 'customers',
+  recordId: savedId || '',
+  oldValues: selectedCustomer ? { full_name_en: selectedCustomer.full_name_en, phone: selectedCustomer.phone } : {},
+  newValues: { full_name_en: formData.full_name_en, phone: formData.phone },
+});
+  
   };
 
   const handleDownload = async (doc: CustomerDocument) => {
@@ -250,24 +261,48 @@ export function Customers() {
   };
 
   const handleDeleteDoc = async (doc: CustomerDocument) => {
-    if (!confirm(`Delete "${doc.label_en || doc.file_name}"?`)) return;
-    setDeletingDocId(doc.id);
-    const token = localStorage.getItem('auth_token');
-    const [customerId, filename] = doc.file_path.split('/');
-    await fetch(`${import.meta.env.VITE_API_URL}/upload/${customerId}/${filename}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    await supabase.from('customer_documents').delete().eq('id', doc.id);
-    setDetailDocs(prev => prev.filter(d => d.id !== doc.id));
-    setDeletingDocId(null);
-  };
+  if (!confirm(`Delete "${doc.label_en || doc.file_name}"?`)) return;
+  setDeletingDocId(doc.id);
+  const token = localStorage.getItem('auth_token');
+  const [customerId, filename] = doc.file_path.split('/');
+  await fetch(`${import.meta.env.VITE_API_URL}/upload/${customerId}/${filename}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  await supabase.from('customer_documents').delete().eq('id', doc.id);
+
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: 'DELETE_CUSTOMER_DOCUMENT',
+    module: 'customers',
+    recordId: doc.id,
+    oldValues: { file_name: doc.file_name, label_en: doc.label_en, document_type: doc.document_type },
+    newValues: {},
+  });
+
+  setDetailDocs(prev => prev.filter(d => d.id !== doc.id));
+  setDeletingDocId(null);
+};
 
 
   const handleToggleActive = async (c: Customer) => {
-    await supabase.from('customers').update({ is_active: !c.is_active }).eq('id', c.id);
-    fetchCustomers();
-  };
+  await supabase.from('customers').update({ is_active: !c.is_active }).eq('id', c.id);
+  
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: c.is_active ? 'DEACTIVATE_CUSTOMER' : 'ACTIVATE_CUSTOMER',
+    module: 'customers',
+    recordId: c.id,
+    oldValues: { is_active: c.is_active },
+    newValues: { is_active: !c.is_active },
+  });
+
+  fetchCustomers();
+};
 
   const set = (key: keyof Customer, value: unknown) => setFormData(prev => ({ ...prev, [key]: value }));
 

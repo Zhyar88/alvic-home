@@ -12,7 +12,7 @@ import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import type { LockSession, LockTransaction } from '../types';
 import { supabase } from '../lib/database';
-
+import { logAudit } from '../lib/auditLog';
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (dateStr: string) => {
     // If it's just a date string "2026-03-11", use it directly
@@ -252,52 +252,79 @@ export function Lock() {
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   const handleOpenSession = async () => {
-    if (!canCreate) return;
-    setSaving(true);
-    const today = new Date().toLocaleDateString('en-CA'); // returns YYYY-MM-DD in local time
-    const existing = sessions.find(s => s.session_date === today);
-    if (existing) { setSaving(false); setShowOpenModal(false); return; }
+  if (!canCreate) return;
+  setSaving(true);
+  const today = new Date().toLocaleDateString('en-CA');
+  const existing = sessions.find(s => s.session_date === today);
+  if (existing) { setSaving(false); setShowOpenModal(false); return; }
 
-    await supabase.from('lock_sessions').insert([{
-      session_date: today,
-      opened_by: profile?.id,
-      opening_balance_usd: Number(openingBalance),
-      total_income_usd: 0,
-      total_expenses_usd: 0,
-      payment_income_usd: 0,
-      installment_income_usd: 0,
-      expense_outflow_usd: 0,
-      net_usd: 0,
-      status: 'open',
-      created_at: new Date().toISOString(),
-    }]);
+  await supabase.from('lock_sessions').insert([{
+    session_date: today,
+    opened_by: profile?.id,
+    opening_balance_usd: Number(openingBalance),
+    total_income_usd: 0,
+    total_expenses_usd: 0,
+    payment_income_usd: 0,
+    installment_income_usd: 0,
+    expense_outflow_usd: 0,
+    net_usd: 0,
+    status: 'open',
+    created_at: new Date().toISOString(),
+  }]);
 
-    setSaving(false);
-    setShowOpenModal(false);
-    setOpeningBalance('0');
-    await refreshContext();
-    fetchSessions();
-  };
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: 'OPEN_CASH_REGISTER',
+    module: 'lock',
+    recordId: '',
+    newValues: { session_date: today, opening_balance_usd: Number(openingBalance) },
+  });
+
+  setSaving(false);
+  setShowOpenModal(false);
+  setOpeningBalance('0');
+  await refreshContext();
+  fetchSessions();
+};
 
   const handleCloseSession = async () => {
-    if (!activeSession || !canUpdate) return;
-    setSaving(true);
-    const closing = Number(activeSession.opening_balance_usd || 0) + Number(activeSession.total_income_usd || 0) - Number(activeSession.total_expenses_usd || 0);
-    await supabase.from('lock_sessions').update({
-      status: 'closed',
-      closed_at: new Date().toISOString(),
-      closed_by: profile?.id,
+  if (!activeSession || !canUpdate) return;
+  setSaving(true);
+  const closing = Number(activeSession.opening_balance_usd || 0) + Number(activeSession.total_income_usd || 0) - Number(activeSession.total_expenses_usd || 0);
+  await supabase.from('lock_sessions').update({
+    status: 'closed',
+    closed_at: new Date().toISOString(),
+    closed_by: profile?.id,
+    closing_balance_usd: closing,
+    net_usd: closing - (activeSession.opening_balance_usd || 0),
+    notes_en: closingNotes,
+    notes_ku: closingNotes,
+  }).eq('id', activeSession.id);
+
+  await logAudit({
+    userId: profile?.id,
+    userNameEn: profile?.full_name_en,
+    userNameKu: profile?.full_name_ku,
+    action: 'CLOSE_CASH_REGISTER',
+    module: 'lock',
+    recordId: activeSession.id,
+    oldValues: { opening_balance_usd: activeSession.opening_balance_usd },
+    newValues: {
       closing_balance_usd: closing,
+      total_income_usd: activeSession.total_income_usd,
+      total_expenses_usd: activeSession.total_expenses_usd,
       net_usd: closing - (activeSession.opening_balance_usd || 0),
-      notes_en: closingNotes,
-      notes_ku: closingNotes,
-    }).eq('id', activeSession.id);
-    setSaving(false);
-    setShowCloseModal(false);
-    setClosingNotes('');
-    await refreshContext();
-    fetchSessions();
-  };
+    },
+  });
+
+  setSaving(false);
+  setShowCloseModal(false);
+  setClosingNotes('');
+  await refreshContext();
+  fetchSessions();
+};
 
   console.log('activeSession:', JSON.stringify(activeSession));
   const closingBalance = activeSession

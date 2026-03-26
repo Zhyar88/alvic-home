@@ -18,8 +18,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'dashboard', icon: <LayoutDashboard size={18} />, labelKey: 'dashboard' },
-  { key: 'orders', icon: <ShoppingBag size={18} />, labelKey: 'orders', permission: { module: 'orders', action: 'read' } },
   { key: 'customers', icon: <Users size={18} />, labelKey: 'customers', permission: { module: 'customers', action: 'read' } },
+  { key: 'orders', icon: <ShoppingBag size={18} />, labelKey: 'orders', permission: { module: 'orders', action: 'read' } },
   { key: 'payments', icon: <CreditCard size={18} />, labelKey: 'payments', permission: { module: 'payments', action: 'read' } },
   { key: 'installments', icon: <CalendarDays size={18} />, labelKey: 'installments', permission: { module: 'installments', action: 'read' } },
   { key: 'expenses', icon: <Receipt size={18} />, labelKey: 'expenses', permission: { module: 'expenses', action: 'read' } },

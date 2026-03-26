@@ -26,6 +26,7 @@ type ReportPeriod = 'daily' | 'monthly' | 'yearly';
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
 type SortField = 'period' | 'total_orders' | 'total_revenue' | 'cash_collected' | 'total_cost' | 'gross_profit' | 'cash_profit' | 'total_expenses' | 'net_profit' | 'cash_net_profit';
 type SortOrder = 'asc' | 'desc';
+type ProfitMode = 'order_based' | 'payment_based';
 
 export function ProfitReport() {
   const { language } = useLanguage();
@@ -50,7 +51,8 @@ export function ProfitReport() {
     cash_net_profit: 0,
     total_orders: 0,
   });
-
+  const [profitMode, setProfitMode] = useState<ProfitMode>('order_based');
+  
   const fmt = (n: number) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = (n: number) => `${Number(n || 0).toFixed(1)}%`;
 
@@ -59,58 +61,62 @@ export function ProfitReport() {
     applyDatePreset(datePreset);
   }, []);
 
-  const applyDatePreset = (preset: DatePreset) => {
-    const now = new Date();
-    let from = new Date();
-    let to = new Date();
+    const applyDatePreset = (preset: DatePreset) => {
+  const today = new Date();
+  let from: Date;
+  let to: Date;
 
-    switch (preset) {
-      case 'today':
-        from = new Date(now.setHours(0, 0, 0, 0));
-        to = new Date();
-        break;
-      case 'yesterday':
-        from = new Date(now.setDate(now.getDate() - 1));
-        from.setHours(0, 0, 0, 0);
-        to = new Date(from);
-        to.setHours(23, 59, 59, 999);
-        break;
-      case 'this_week':
-        from = new Date(now.setDate(now.getDate() - now.getDay()));
-        from.setHours(0, 0, 0, 0);
-        to = new Date();
-        break;
-      case 'last_week':
-        from = new Date(now.setDate(now.getDate() - now.getDay() - 7));
-        from.setHours(0, 0, 0, 0);
-        to = new Date(from);
-        to.setDate(to.getDate() + 6);
-        to.setHours(23, 59, 59, 999);
-        break;
-      case 'this_month':
-        from = new Date(now.getFullYear(), now.getMonth(), 1);
-        to = new Date();
-        break;
-      case 'last_month':
-        from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        to = new Date(now.getFullYear(), now.getMonth(), 0);
-        break;
-      case 'this_quarter':
-        const quarter = Math.floor(now.getMonth() / 3);
-        from = new Date(now.getFullYear(), quarter * 3, 1);
-        to = new Date();
-        break;
-      case 'this_year':
-        from = new Date(now.getFullYear(), 0, 1);
-        to = new Date();
-        break;
-      case 'custom':
-        return;
+  switch (preset) {
+    case 'today':
+      from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      to = new Date();
+      break;
+    case 'yesterday': {
+      from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+      to = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
+      break;
     }
+    case 'this_week': {
+      from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
+      to = new Date();
+      break;
+    }
+    case 'last_week': {
+      const sundayThisWeek = today.getDate() - today.getDay();
+      from = new Date(today.getFullYear(), today.getMonth(), sundayThisWeek - 7);
+      to = new Date(today.getFullYear(), today.getMonth(), sundayThisWeek - 1, 23, 59, 59, 999);
+      break;
+    }
+    case 'this_month':
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+      to = new Date();
+      break;
+    case 'last_month':
+      from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      to = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+      break;
+    case 'this_quarter': {
+      const quarter = Math.floor(today.getMonth() / 3);
+      from = new Date(today.getFullYear(), quarter * 3, 1);
+      to = new Date();
+      break;
+    }
+    case 'this_year':
+      from = new Date(today.getFullYear(), 0, 1);
+      to = new Date();
+      break;
+    case 'custom':
+      return;
+    default:
+      return;
+  }
 
-    setDateFrom(from.toISOString().split('T')[0]);
-    setDateTo(to.toISOString().split('T')[0]);
-  };
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  setDateFrom(toLocal(from));
+  setDateTo(toLocal(to));
+};
+
 
   const handlePresetChange = (preset: DatePreset) => {
     setDatePreset(preset);
@@ -134,133 +140,163 @@ export function ProfitReport() {
 
   const fetchReports = async () => {
     setLoading(true);
-    console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
     try {
-      console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
+      // Helper: get period key from a date string
+      const getPeriodKeyFromDate = (dateStr: string) => {
+        // If it contains 'T', it's a timestamp — parse to local date
+        if (dateStr.includes('T')) {
+          const date = new Date(dateStr);
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          if (period === 'yearly') return String(yyyy);
+          if (period === 'monthly') return `${yyyy}-${mm}`;
+          return `${yyyy}-${mm}-${dd}`;
+        }
+        // Plain date string — slice directly
+        if (period === 'yearly') return dateStr.slice(0, 4);
+        if (period === 'monthly') return dateStr.slice(0, 7);
+        return dateStr.slice(0, 10);
+      };
+      const getPeriodKeyFromTimestamp = (timestamp: string) => {
+        const date = new Date(timestamp);
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        if (period === 'yearly') return String(yyyy);
+        if (period === 'monthly') return `${yyyy}-${mm}`;
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
+      const emptyPeriod = (): ProfitReportData => ({
+        period: '', total_revenue: 0, cash_collected: 0, total_cost: 0,
+        gross_profit: 0, cash_profit: 0, total_expenses: 0, net_profit: 0,
+        cash_net_profit: 0, gross_margin: 0, net_margin: 0, total_orders: 0,
+      });
+
+      const dataByPeriod = new Map<string, ProfitReportData>();
+      const ensure = (key: string): ProfitReportData => {
+        if (!dataByPeriod.has(key)) dataByPeriod.set(key, { ...emptyPeriod(), period: key });
+        return dataByPeriod.get(key)!;
+      };
+
+      // ── 1. Fetch orders created in the date range (for revenue/cost) ──
       let ordersQuery = supabase
         .from('orders')
         .select('*')
         .gte('created_at', dateFrom)
-        .lte('created_at', dateTo)
-        .neq('status', 'draft');
-        console.log('fetchReports dateFrom:', dateFrom, 'dateTo:', dateTo);
+        .lte('created_at', dateTo);
       if (customerFilter !== 'all') {
         ordersQuery = ordersQuery.eq('customer_id', customerFilter);
       }
+      const { data: ordersInRange } = await ordersQuery;
+      const ordersInRangeList = (ordersInRange || []);
 
-      const { data: ordersData } = await ordersQuery;
-      console.log('ordersData count:', (ordersData || []).length, 'sample:', JSON.stringify((ordersData || [])[0]));
+      // ── 2. Fetch payments received in the date range (by payment_date) ──
+      const { data: allPaymentsRaw } = await supabase
+        .from('payments')
+        .select('order_id, amount_usd, payment_date, payment_type, is_reversed')
+        .gte('payment_date', dateFrom)
+        .lte('payment_date', dateTo)
+        .eq('is_reversed', false);
+      // Filter reversal type client-side
+      const allPaymentsInRange = (allPaymentsRaw || []).filter(
+        (p: any) => p.payment_type !== 'reversal'
+      );
 
-      // Fetch payments for orders
-      const orderIds = (ordersData || []).map(o => o.id);
-      let paymentsData: any[] = [];
-      if (orderIds.length > 0) {
-        const { data: pd } = await supabase
-          .from('payments')
-          .select('order_id, amount_usd')
-          .in('order_id', orderIds)
-          .eq('is_reversed', false)
-          .neq('payment_type', 'reversal');
-        paymentsData = pd || [];
+      // ── 3. Fetch orders for payments (that weren't already in range) ──
+      const orderIdSet = new Set(ordersInRangeList.map((o: any) => o.id));
+      const missingOrderIds = [...new Set(
+        allPaymentsInRange.map((p: any) => p.order_id).filter((id: string) => !orderIdSet.has(id))
+      )];
+
+      let additionalOrders: any[] = [];
+      for (let i = 0; i < missingOrderIds.length; i += 100) {
+        const { data: po } = await supabase
+          .from('orders')
+          .select('id, customer_id, final_total_usd, total_cost_usd, total_profit_usd, status')
+          .in('id', missingOrderIds.slice(i, i + 100));
+        additionalOrders = additionalOrders.concat(po || []);
       }
 
-      // Create a map of order_id -> total paid
-      const paymentsByOrder = new Map<string, number>();
-      (paymentsData || []).forEach(payment => {
-        const current = paymentsByOrder.get(payment.order_id) || 0;
-        paymentsByOrder.set(payment.order_id, current + Number(payment.amount_usd || 0));
+      // Build order lookup
+      const orderMap = new Map<string, any>();
+      ordersInRangeList.forEach((o: any) => orderMap.set(o.id, o));
+      additionalOrders.forEach((o: any) => orderMap.set(o.id, o));
+
+      // Filter payments: exclude drafts and apply customer filter
+      const paymentsInRange = allPaymentsInRange.filter((p: any) => {
+        const order = orderMap.get(p.order_id);
+        if (customerFilter !== 'all' && order.customer_id !== customerFilter) return false;
+        return true;
       });
 
+      // Count unique non-draft orders that have activity in this period
+      const activeOrderIds = new Set<string>();
+      ordersInRangeList.forEach((o: any) => activeOrderIds.add(o.id));
+      paymentsInRange.forEach((p: any) => activeOrderIds.add(p.order_id));
+
+      // ── 4. Fetch expenses ──
       const { data: expensesData } = await supabase
         .from('expenses')
         .select('*')
         .gte('expense_date', dateFrom)
         .lte('expense_date', dateTo);
 
-      const dataByPeriod = new Map<string, ProfitReportData>();
-
-      (ordersData || []).forEach(order => {
-        const date = new Date(order.created_at);
-        let periodKey: string;
-
-        if (period === 'yearly') {
-          periodKey = date.getFullYear().toString();
-        } else if (period === 'monthly') {
-          periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        } else {
-          periodKey = date.toISOString().split('T')[0];
-        }
-
-        if (!dataByPeriod.has(periodKey)) {
-          dataByPeriod.set(periodKey, {
-            period: periodKey,
-            total_revenue: 0,
-            cash_collected: 0,
-            total_cost: 0,
-            gross_profit: 0,
-            cash_profit: 0,
-            total_expenses: 0,
-            net_profit: 0,
-            cash_net_profit: 0,
-            gross_margin: 0,
-            net_margin: 0,
-            total_orders: 0,
-          });
-        }
-
-        const data = dataByPeriod.get(periodKey)!;
-        const paidAmount = paymentsByOrder.get(order.id) || 0;
-        const costForPaidPortion = Number(order.total_cost_usd || 0) * (paidAmount / Number(order.final_total_usd || 1));
-
-        data.total_revenue += Number(order.final_total_usd || 0);
-        data.cash_collected += paidAmount;
-        data.total_cost += Number(order.total_cost_usd || 0);
-        data.gross_profit += Number(order.total_profit_usd || 0);
-        data.cash_profit += (paidAmount - costForPaidPortion);
+      // ── 5. Group orders by created_at (revenue, cost, profit) ──
+      ordersInRangeList.forEach((order: any) => {
+        const key = getPeriodKeyFromTimestamp(order.created_at);
+        const data = ensure(key);
+        const finalTotal = Number(order.final_total_usd || 0);
+        const costTotal = Number(order.total_cost_usd || 0);
+        data.total_revenue += finalTotal;
+        data.total_cost += costTotal;
+        data.gross_profit += finalTotal - costTotal;
         data.total_orders += 1;
       });
 
-      (expensesData || []).forEach(expense => {
-        const date = new Date(expense.expense_date);
-        let periodKey: string;
+      // ── 6. Group payments by payment_date (cash collected, cash profit) ──
+      paymentsInRange.forEach((payment: any) => {
+        const key = getPeriodKeyFromDate(String(payment.payment_date));
+        console.log('Payment grouped:', { payment_date: payment.payment_date, key, amount: payment.amount_usd, order_id: payment.order_id });
+        const data = ensure(key);
+        const order = orderMap.get(payment.order_id);
+        const paidAmount = Number(payment.amount_usd || 0);
+        const finalTotal = Number(order?.final_total_usd || 1);
+        const costTotal = Number(order?.total_cost_usd || 0);
+        const costForPaid = finalTotal > 0 ? costTotal * (paidAmount / finalTotal) : 0;
+        data.cash_collected += paidAmount;
+        data.cash_profit += paidAmount - costForPaid;
+      });
 
-        if (period === 'yearly') {
-          periodKey = date.getFullYear().toString();
-        } else if (period === 'monthly') {
-          periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        } else {
-          periodKey = date.toISOString().split('T')[0];
-        }
-
-        if (!dataByPeriod.has(periodKey)) {
-          dataByPeriod.set(periodKey, {
-            period: periodKey,
-            total_revenue: 0,
-            cash_collected: 0,
-            total_cost: 0,
-            gross_profit: 0,
-            cash_profit: 0,
-            total_expenses: 0,
-            net_profit: 0,
-            cash_net_profit: 0,
-            gross_margin: 0,
-            net_margin: 0,
-            total_orders: 0,
-          });
-        }
-
-        const data = dataByPeriod.get(periodKey)!;
+      // ── 7. Group expenses by expense_date ──
+      (expensesData || []).forEach((expense: any) => {
+        const key = getPeriodKeyFromDate(String(expense.expense_date));
+        const data = ensure(key);
         data.total_expenses += Number(expense.amount_usd || 0);
       });
 
-      dataByPeriod.forEach(data => {
-        data.net_profit = data.gross_profit - data.total_expenses;
-        data.cash_net_profit = data.cash_profit - data.total_expenses;
-        data.gross_margin = data.total_revenue > 0 ? (data.gross_profit / data.total_revenue) * 100 : 0;
-        data.net_margin = data.total_revenue > 0 ? (data.net_profit / data.total_revenue) * 100 : 0;
-      });
+      // ── 8. Calculate derived fields ──
+dataByPeriod.forEach(data => {
+  if (profitMode === 'order_based') {
+    // Order-based: profit = revenue - cost (from order creation date)
+    data.net_profit = data.gross_profit - data.total_expenses;
+    data.cash_net_profit = data.cash_profit - data.total_expenses;
+    data.gross_margin = data.total_revenue > 0 ? (data.gross_profit / data.total_revenue) * 100 : 0;
+    data.net_margin = data.total_revenue > 0 ? (data.net_profit / data.total_revenue) * 100 : 0;
+  } else {
+    // Payment-based: use cash_profit as the main profit metric
+    data.gross_profit = data.cash_profit;
+    data.total_revenue = data.cash_collected;
+    data.total_cost = data.cash_collected > 0 ? data.cash_collected - data.cash_profit : 0;
+    data.net_profit = data.cash_profit - data.total_expenses;
+    data.cash_net_profit = data.cash_profit - data.total_expenses;
+    data.gross_margin = data.cash_collected > 0 ? (data.cash_profit / data.cash_collected) * 100 : 0;
+    data.net_margin = data.cash_collected > 0 ? (data.net_profit / data.cash_collected) * 100 : 0;
+  }
+});
 
-      let reportData = Array.from(dataByPeriod.values());
+      const reportData = Array.from(dataByPeriod.values());
       setReports(reportData);
 
       const totals = reportData.reduce((acc, r) => ({
@@ -274,17 +310,9 @@ export function ProfitReport() {
         cash_net_profit: acc.cash_net_profit + r.cash_net_profit,
         total_orders: acc.total_orders + r.total_orders,
       }), {
-        total_revenue: 0,
-        cash_collected: 0,
-        total_cost: 0,
-        gross_profit: 0,
-        cash_profit: 0,
-        total_expenses: 0,
-        net_profit: 0,
-        cash_net_profit: 0,
-        total_orders: 0,
+        total_revenue: 0, cash_collected: 0, total_cost: 0, gross_profit: 0,
+        cash_profit: 0, total_expenses: 0, net_profit: 0, cash_net_profit: 0, total_orders: 0,
       });
-
       setSummary(totals);
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -428,7 +456,41 @@ export function ProfitReport() {
             ))}
           </Select>
         </div>
-
+        <div className="col-span-full">
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    {language === 'ku' ? 'شێوازی حیسابکردنی قازانج' : 'Profit Calculation Mode'}
+  </label>
+  <div className="grid grid-cols-2 gap-2">
+    <button
+      type="button"
+      onClick={() => setProfitMode('order_based')}
+      className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+        profitMode === 'order_based'
+          ? 'bg-emerald-600 text-white border-emerald-600'
+          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
+      }`}
+    >
+      <div className="font-bold">{language === 'ku' ? 'بەپێی داواکاری' : 'Order Based'}</div>
+      <div className={`text-xs mt-0.5 ${profitMode === 'order_based' ? 'text-emerald-100' : 'text-gray-400'}`}>
+        {language === 'ku' ? 'قازانج کاتی دروستکردنی داواکاری' : 'Profit when order is created'}
+      </div>
+    </button>
+    <button
+      type="button"
+      onClick={() => setProfitMode('payment_based')}
+      className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+        profitMode === 'payment_based'
+          ? 'bg-emerald-600 text-white border-emerald-600'
+          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
+      }`}
+    >
+      <div className="font-bold">{language === 'ku' ? 'بەپێی پارەدان' : 'Payment Based'}</div>
+      <div className={`text-xs mt-0.5 ${profitMode === 'payment_based' ? 'text-emerald-100' : 'text-gray-400'}`}>
+        {language === 'ku' ? 'قازانج کاتی وەرگرتنی پارە' : 'Profit when payment is received'}
+      </div>
+    </button>
+  </div>
+</div>
         <div className="flex justify-end">
           <Button onClick={fetchReports} disabled={loading}>
             <BarChart3 size={16} />
@@ -440,94 +502,103 @@ export function ProfitReport() {
       {reports.length > 0 && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign size={18} className="text-blue-600" />
-                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'کۆی داهات' : 'Total Revenue'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-blue-900">{fmt(summary.total_revenue)}</p>
-              <p className="text-xs text-blue-600 mt-1">{language === 'ku' ? 'پارە + پێماوە' : 'Paid + Unpaid'}</p>
-            </div>
+  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+    <div className="flex items-center gap-2 mb-2">
+      <DollarSign size={18} className="text-blue-600" />
+      <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
+        {profitMode === 'payment_based'
+          ? (language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected')
+          : (language === 'ku' ? 'کۆی داهات' : 'Total Revenue')}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-blue-900">{fmt(summary.total_revenue)}</p>
+    <p className="text-xs text-blue-600 mt-1">
+      {profitMode === 'payment_based'
+        ? (language === 'ku' ? 'تەنها پارەی وەرگیراو' : 'Actual cash received')
+        : (language === 'ku' ? 'پارە + پێماوە' : 'Paid + Unpaid')}
+    </p>
+  </div>
 
-            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet size={18} className="text-cyan-600" />
-                <p className="text-xs font-medium text-cyan-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'پارەی کۆکراوە' : 'Cash Collected'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-cyan-900">{fmt(summary.cash_collected)}</p>
-              <p className="text-xs text-cyan-600 mt-1">{language === 'ku' ? 'تەنها پارە' : 'Paid Only'}</p>
-            </div>
+  <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
+    <div className="flex items-center gap-2 mb-2">
+      <Wallet size={18} className="text-cyan-600" />
+      <p className="text-xs font-medium text-cyan-700 uppercase tracking-wide">
+        {language === 'ku' ? 'تێچوو' : 'Cost'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-cyan-900">{fmt(summary.total_cost)}</p>
+    <p className="text-xs text-cyan-600 mt-1">
+      {profitMode === 'payment_based'
+        ? (language === 'ku' ? 'تێچووی بەشی پارەدراو' : 'Cost proportional to payments')
+        : (language === 'ku' ? 'تێچووی کۆی داواکاری' : 'Total order cost')}
+    </p>
+  </div>
 
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={18} className="text-emerald-600" />
-                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'قازانجی کۆ' : 'Total Profit'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
-              <p className="text-xs text-emerald-600 mt-1">{language === 'ku' ? 'پێش خەرجی' : 'Before Expenses'}</p>
-            </div>
+  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+    <div className="flex items-center gap-2 mb-2">
+      <TrendingUp size={18} className="text-emerald-600" />
+      <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
+        {language === 'ku' ? 'قازانجی کۆ' : 'Gross Profit'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-emerald-900">{fmt(summary.gross_profit)}</p>
+    <p className="text-xs text-emerald-600 mt-1">
+      {profitMode === 'payment_based'
+        ? (language === 'ku' ? 'قازانج لە پارەی وەرگیراو' : 'Profit from received cash')
+        : (language === 'ku' ? 'پێش خەرجی' : 'Before expenses')}
+    </p>
+  </div>
 
-            <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4 border border-teal-200">
-              <div className="flex items-center gap-2 mb-2">
-                <ArrowUpDown size={18} className="text-teal-600" />
-                <p className="text-xs font-medium text-teal-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'قازانجی پارە' : 'Cash Profit'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-teal-900">{fmt(summary.cash_profit)}</p>
-              <p className="text-xs text-teal-600 mt-1">{language === 'ku' ? 'پێش خەرجی' : 'Before Expenses'}</p>
-            </div>
-          </div>
+  <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+    <div className="flex items-center gap-2 mb-2">
+      <ArrowUpDown size={18} className="text-amber-600" />
+      <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
+        {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-amber-900">{fmt(summary.net_profit)}</p>
+    <p className="text-xs text-amber-600 mt-1">{pct(netMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
+  </div>
+</div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet size={18} className="text-red-600" />
-                <p className="text-xs font-medium text-red-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'تێچوو' : 'Cost'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-red-900">{fmt(summary.total_cost)}</p>
-            </div>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
+    <div className="flex items-center gap-2 mb-2">
+      <Wallet size={18} className="text-orange-600" />
+      <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">
+        {language === 'ku' ? 'خەرجییەکان' : 'Expenses'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-orange-900">{fmt(summary.total_expenses)}</p>
+  </div>
 
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet size={18} className="text-orange-600" />
-                <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'خەرجییەکان' : 'Expenses'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-orange-900">{fmt(summary.total_expenses)}</p>
-            </div>
+  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+    <div className="flex items-center gap-2 mb-2">
+      <BarChart3 size={18} className="text-gray-600" />
+      <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+        {language === 'ku' ? 'داواکاریەکان' : 'Orders'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-gray-900">{summary.total_orders}</p>
+  </div>
 
-            <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign size={18} className="text-amber-600" />
-                <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'قازانجی دواییە' : 'Net Profit'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-amber-900">{fmt(summary.net_profit)}</p>
-              <p className="text-xs text-amber-600 mt-1">{pct(netMargin)} {language === 'ku' ? 'لەسەدا' : 'margin'}</p>
-            </div>
+  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+    <div className="flex items-center gap-2 mb-2">
+      <TrendingUp size={18} className="text-purple-600" />
+      <p className="text-xs font-medium text-purple-700 uppercase tracking-wide">
+        {language === 'ku' ? 'ڕێژەی قازانج' : 'Profit Margin'}
+      </p>
+    </div>
+    <p className="text-2xl font-bold text-purple-900">{pct(profitMargin)}</p>
+    <p className="text-xs text-purple-600 mt-1">
+      {profitMode === 'payment_based'
+        ? (language === 'ku' ? 'بەپێی پارەدان' : 'Payment based')
+        : (language === 'ku' ? 'بەپێی داواکاری' : 'Order based')}
+    </p>
+  </div>
+</div>
 
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={18} className="text-yellow-600" />
-                <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">
-                  {language === 'ku' ? 'قازانجی پارە دواییە' : 'Cash Net Profit'}
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-yellow-900">{fmt(summary.cash_net_profit)}</p>
-              <p className="text-xs text-yellow-600 mt-1">{language === 'ku' ? 'پارەی ڕاستەقینە' : 'Actual Cash'}</p>
-            </div>
-          </div>
+          
 
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <div className="p-5 border-b border-gray-200 flex items-center justify-between">

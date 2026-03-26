@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Globe, Lock } from 'lucide-react';
-
+import { logAudit } from '../lib/auditLog';
 export function Login() {
   const { signIn } = useAuth();
   const { t, language, setLanguage } = useLanguage();
@@ -15,13 +15,24 @@ export function Login() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    const { error: err } = await signIn(email, password);
-    if (err) setError(err);
-    setLoading(false);
-  };
+  e.preventDefault();
+  setError('');
+  setLoading(true);
+  const { error: err } = await signIn(email, password);
+  if (err) {
+    setError(err);
+  } else {
+    await logAudit({
+      userId: '',
+      userNameEn: email,
+      userNameKu: '',
+      action: 'LOGIN',
+      module: 'auth',
+      newValues: { email },
+    });
+  }
+  setLoading(false);
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-50 via-white to-emerald-50 flex items-center justify-center p-4">

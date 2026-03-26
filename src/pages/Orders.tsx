@@ -13,6 +13,9 @@ import { OrderContract } from '../components/orders/OrderContract';
 import type { Order, Customer, UserProfile, OrderItem, ProductType } from '../types';
 import { DatePicker } from '../components/ui/DatePicker';
 import { supabase } from '../lib/database';
+import { ManufacturingReceipt } from '../components/orders/ManufacturingReceipt';
+import { ClipboardList } from 'lucide-react'; // add to your lucide imports
+import { logAudit } from '../lib/auditLog';
 
 type SortField = 'order_number' | 'customer' | 'status' | 'sale_type' | 'final_total_usd' | 'balance_due_usd' | 'created_at';
 type SortDir = 'asc' | 'desc';
@@ -31,6 +34,17 @@ const PRODUCT_TYPES: { value: ProductType; labelEn: string; labelKu: string }[] 
   { value: 'shoe_cabinet', labelEn: 'Shoe Cabinet', labelKu: 'کابینەتی پێڵاو' },
   { value: 'understairs_cabinet', labelEn: 'Understairs Cabinet', labelKu: 'کابینەتی ژێر پلەکان' },
   { value: 'custom_console', labelEn: 'Custom Console', labelKu: 'کۆنسۆلی تایبەتمەند' },
+];
+const BEDROOM_FIELDS = [
+  { key: 'upper_cabinet_door_color', enLabel: 'Upper Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی سەروو' },
+  { key: 'lower_cabinet_door_color', enLabel: 'Lower Cabinet Door Color', kuLabel: 'ڕەنگی دەرگای کابینەتی خوارەوە' },
+  { key: 'cabinet_body_color', enLabel: 'Cabinet Body Color', kuLabel: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'naxsh', enLabel: 'Naxsh', kuLabel: 'نەخش' },
+  { key: 'crown', enLabel: 'Crown', kuLabel: 'کراون' },
+  { key: 'handle_type', enLabel: 'Handle Type', kuLabel: 'جۆری دەستگیرە' },
+  { key: 'glass_color', enLabel: 'Glass Color', kuLabel: 'ڕەنگی شووشە' },
+  { key: 'baza', enLabel: 'Baza', kuLabel: 'بازا' },
+  { key: 'liner_led', enLabel: 'Liner LED', kuLabel: 'لاینەر LED' },
 ];
 
 const KITCHEN_FIELDS = [
@@ -95,7 +109,8 @@ export function Orders() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [employees, setEmployees] = useState<UserProfile[]>([]);
   const [currentRate, setCurrentRate] = useState<{ rate_cash: number; rate_installment: number }>({ rate_cash: 1330, rate_installment: 1470 });
-
+  const [showManufacturing, setShowManufacturing] = useState(false);
+  const [manufacturingOrder, setManufacturingOrder] = useState<Order | null>(null);
   const [formData, setFormData] = useState<Partial<Order>>({
     sale_type: 'cash',
     status: 'draft',
@@ -400,16 +415,25 @@ useEffect(() => {
 
     setSaving(false);
     setShowForm(false);
-
+    await logAudit({
+  userId: profile?.id,
+  userNameEn: profile?.full_name_en,
+  userNameKu: profile?.full_name_ku,
+  action: selectedOrder ? 'UPDATE_ORDER' : 'CREATE_ORDER',
+  module: 'orders',
+  recordId: orderId,
+  oldValues: selectedOrder ? { order_number: selectedOrder.order_number, status: selectedOrder.status, final_total_usd: selectedOrder.final_total_usd } : {},
+  newValues: { order_number: orderNum, status: formData.status, final_total_usd: currentTotals.final_total_usd },
+});
     const isNew = !selectedOrder;
     await fetchOrders();
 
     if (isNew && orderId) {
       const { data: fullOrder } = await supabase
-        .from('orders')
-        .select('*, customer:customers(full_name_en, full_name_ku, phone, address_en, address_ku)')
-        .eq('id', orderId)
-        .maybeSingle();
+      .from('orders')
+      .select('*, customer:customers(full_name_en, full_name_ku, phone, phone_secondary, address_en, address_ku)')
+      .eq('id', orderId)
+  .maybeSingle();
       const { data: orderItems } = await supabase
         .from('order_items')
         .select('*')
@@ -500,6 +524,16 @@ useEffect(() => {
 
     setSaving(false);
     setShowStatusModal(false);
+    await logAudit({
+  userId: profile?.id,
+  userNameEn: profile?.full_name_en,
+  userNameKu: profile?.full_name_ku,
+  action: 'CHANGE_ORDER_STATUS',
+  module: 'orders',
+  recordId: selectedOrder.id,
+  oldValues: { status: selectedOrder.status },
+  newValues: { status: newStatus, reason: statusReason },
+});
     fetchOrders();
   };
 
@@ -520,6 +554,16 @@ useEffect(() => {
     await supabase.from('order_items').delete().eq('order_id', order.id);
     await supabase.from('orders').delete().eq('id', order.id);
     fetchOrders();
+    await logAudit({
+  userId: profile?.id,
+  userNameEn: profile?.full_name_en,
+  userNameKu: profile?.full_name_ku,
+  action: 'DELETE_ORDER',
+  module: 'orders',
+  recordId: order.id,
+  oldValues: { order_number: order.order_number, final_total_usd: order.final_total_usd },
+  newValues: {},
+});
   };
 
   const canCreate = hasPermission('orders', 'create');
@@ -660,10 +704,47 @@ useEffect(() => {
                     >
                       <Printer size={14} />
                     </button>
+                    <button
+  onClick={async () => {
+    const { data: fullOrder } = await supabase
+      .from('orders')
+      .select('*, customer:customers(full_name_en, full_name_ku, phone, phone_secondary, address_en, address_ku)')
+      .eq('id', order.id)
+      .maybeSingle();
+    const { data: itemData } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', order.id)
+      .order('sort_order');
+    if (fullOrder) {
+      const raw = fullOrder as any;
+      const customerObj = raw.customer || {
+        full_name_en: raw.customer__full_name_en || '',
+        full_name_ku: raw.customer__full_name_ku || '',
+        phone: raw.customer__phone || '',
+        phone_secondary: raw.customer__phone_secondary || '',
+        address_en: raw.customer__address_en || '',
+        address_ku: raw.customer__address_ku || '',
+      };
+      setManufacturingOrder({
+        ...(fullOrder as Order),
+        customer: customerObj,
+        items: (itemData || []) as OrderItem[],
+      });
+      setShowManufacturing(true);
+    }
+  }}
+  className="p-1.5 rounded-lg hover:bg-orange-50 text-orange-600 transition-colors"
+  title="Manufacturing Form"
+>
+  <ClipboardList size={14} />
+</button>
+                    
                     {canEdit && <button onClick={() => openEdit(order)} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition-colors" title="Edit"><Edit size={14} /></button>}
                     {canChangeStatus && (
                       <button onClick={() => { setSelectedOrder(order); setNewStatus(order.status); setStatusReason(''); setShowStatusModal(true); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors" title="Change Status"><ChevronRight size={14} /></button>
                     )}
+                    
                     {canDelete && <button onClick={() => handleDelete(order)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Delete"><Trash2 size={14} /></button>}
                   </div>
                 </td>
@@ -930,26 +1011,39 @@ useEffect(() => {
                   )}
 
                   {isKitchenBedroom(item.product_type as ProductType) && (
-                    <div className="border-t border-gray-100 pt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {KITCHEN_FIELDS.map(field => (
-                        <div key={field.key} className="grid grid-cols-2 gap-2">
-                          <Input
-                            label={field.enLabel}
-                            value={(item.config as Record<string, string>)?.[`${field.key}_en`] || ''}
-                            onChange={e => updateItemConfig(idx, field.key, e.target.value, 'en')}
-                          />
-                          <div dir="rtl">
-                            <Input
-                              label={field.kuLabel}
-                              value={(item.config as Record<string, string>)?.[`${field.key}_ku`] || ''}
-                              onChange={e => updateItemConfig(idx, field.key, e.target.value, 'ku')}
-                              className="text-right"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+  <div className="border-t border-gray-100 pt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+    {(item.product_type === 'kitchen_cabinet' ? KITCHEN_FIELDS : BEDROOM_FIELDS).map(field => (
+      <div key={field.key} className="grid grid-cols-2 gap-2">
+        <Input
+          label={field.enLabel}
+          value={(item.config as Record<string, string>)?.[`${field.key}_en`] || ''}
+          onChange={e => updateItemConfig(idx, field.key, e.target.value, 'en')}
+        />
+        <div dir="rtl">
+          <Input
+            label={field.kuLabel}
+            value={(item.config as Record<string, string>)?.[`${field.key}_ku`] || ''}
+            onChange={e => updateItemConfig(idx, field.key, e.target.value, 'ku')}
+            className="text-right"
+          />
+        </div>
+      </div>
+    ))}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{t('material')}</label>
+      <select
+        value={(item.config as Record<string, string>)?.material_en || ''}
+        onChange={e => updateItemConfig(idx, 'material', e.target.value, 'en')}
+        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none bg-white"
+      >
+        <option value="">{t('selectMaterial')}</option>
+        <option value="MDF">{t('materialMDF')}</option>
+        <option value="Acrylic">{t('materialAcrylic')}</option>
+        <option value="Ballonpress">{t('materialBallonpress')}</option>
+      </select>
+    </div>
+  </div>
+)}
 
                   {!isKitchenBedroom(item.product_type as ProductType) && (
                     <div className="border-t border-gray-100 pt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1099,6 +1193,10 @@ useEffect(() => {
       {showContract && contractOrder && (
         <OrderContract order={contractOrder} onClose={() => { setShowContract(false); setContractOrder(null); }} />
       )}
+      {showManufacturing && manufacturingOrder && (
+  <ManufacturingReceipt order={manufacturingOrder} onClose={() => { setShowManufacturing(false); setManufacturingOrder(null); }} />
+)}
+      
     </div>
   );
 }
