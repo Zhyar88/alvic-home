@@ -490,7 +490,7 @@ const en = {
 
 const ku: typeof en = {
   appName: 'ئالڤیک هۆم',
-  appSubtitle: 'سیستەمی بەڕێوەبردنی مۆبڵی تایبەت',
+  appSubtitle: 'سیستەمی بەڕێوەبردنی پێشانگای تایبەت',
 
   dashboard: 'داشبۆرد',
   orders: 'داواکارییەکان',
@@ -516,10 +516,10 @@ const ku: typeof en = {
   delete: 'سڕینەوە',
   edit: 'دەستکاریکردن',
   create: 'دروستکردن',
-  view: 'بینین',
+  view: 'تەماشاکردن',
 
   search: 'گەڕان...',
-  filter: 'پاڵاوتن',
+  filter: 'فلتەرکردن',
   export: 'هەناردەکردن',
   print: 'چاپکردن',
 
@@ -551,7 +551,7 @@ const ku: typeof en = {
   date: 'بەروار',
   amount: 'بڕ',
   currency: 'دراو',
-  total: 'کۆ',
+  total: 'کۆی گشتی',
 
   actions: 'کردارەکان',
   details: 'وردەکاری',
@@ -560,7 +560,7 @@ const ku: typeof en = {
   add: 'زیادکردن',
   remove: 'لابردن',
 
-  required: 'پێویست',
+  required: 'پێویستە',
   optional: 'ئارەزوومەندانە',
 
   active: 'چالاک',
@@ -581,17 +581,17 @@ const ku: typeof en = {
   draft: 'ڕەشنووس',
   approved: 'پەسەندکراو',
   deposit_paid: 'پێشەکی دراوە',
-  in_production: 'لە بەرهەمهێناندایە',
+  in_production: 'لە دروستکردندایە',
   ready: 'ئامادەیە',
-  installed: 'دانراوە',
+  installed: '‌‌هەڵواسراوە',
   finished: 'تەواوبووە',
 
   // Product types
-  kitchen_cabinet: 'دۆڵابی چێشتخانە',
-  bedroom_cabinet: 'دۆڵابی ژووری نووستن',
+  kitchen_cabinet: ' کەوانتەر',
+  bedroom_cabinet: ' ژووری نووستن',
   tv_console: 'کۆنسۆلی تەلەفزیۆن',
-  shoe_cabinet: 'دۆڵابی پێڵاو',
-  understairs_cabinet: 'دۆڵابی ژێر پلە',
+  shoe_cabinet: 'جێ پێڵاو',
+  understairs_cabinet: 'دۆڵابی ژێر قادرمە',
   custom_console: 'کۆنسۆلی تایبەت',
 
   // Payment
@@ -613,9 +613,9 @@ const ku: typeof en = {
 
   // Customer
   fullName: 'ناوی تەواو',
-  nationalId: 'ناسنامەی نیشتمانی',
+  nationalId: 'کارتی نیشتمانی',
   guarantor: 'کەفیل',
-  guarantorWorkplace: 'شوێنی کاری کەفیل',
+  guarantorWorkplace: 'شوێن کاری کەفیل',
   salaryConsent: 'ڕەزامەندی کەمکردنەوەی مووچە',
 
   // Order
@@ -637,29 +637,29 @@ const ku: typeof en = {
   items: 'بڕگەکان',
 
   // Colors / materials
-  upCabinetDoorColor: 'ڕەنگی دەرگای دۆڵابی سەرەوە',
-  lowerCabinetDoorColor: 'ڕەنگی دەرگای دۆڵابی خوارەوە',
+  upCabinetDoorColor: 'ڕەنگی دەرگای  سەرەوە',
+  lowerCabinetDoorColor: 'ڕەنگی دەرگای  خوارەوە',
   cabinetBodyColor: 'ڕەنگی لاشەی دۆڵاب',
-  cabinetTop: 'سەری دۆڵاب',
+  cabinetTop: 'سەری کەوانتەر',
 
   naxsh: 'نەخش',
-  crown: 'کراون',
+  crown: 'تاج',
   kiler: 'کیلەر',
 
-  stove: 'گاز',
-  countertop: 'سەری کانتەر (بەرد)',
-  linerLed: 'LED',
-  suctionDevice: 'هەواکێش',
+  stove: 'تەباخ',
+  countertop: 'سەری کەوانتەر (بەرد)',
+  linerLed: 'ڵید',
+  suctionDevice: 'مورەشەح',
 
   microwave: 'مایکرۆویڤ',
-  mujameda: 'موجەمەدە',
+  mujameda: 'موجەمیدە',
 
-  handleType: 'جۆری دەستە',
-  oven: 'فەرن',
-  fridge: 'ساردکەرەوە',
-  washer: 'جلشۆر',
+  handleType: 'جۆری دەسک',
+  oven: 'فرن',
+  fridge: 'سەلاجە',
+  washer: '(غسالە)جلشۆر',
 
-  baza: 'بازا',
+  baza: 'بازە',
   glassColor: 'ڕەنگی شووشە',
   projectDesign: 'دیزاینی پرۆژە',
 
@@ -669,11 +669,11 @@ const ku: typeof en = {
   unpaid: 'نەدراوە',
 
   dueDate: 'بەرواری پارەدان',
-  paidDate: 'بەرواری پارەدراو',
+  paidDate: 'بەرواری دەفعکردن',
 
-  quantity: 'ژمارە',
+  quantity: 'بڕ',
   unitPrice: 'نرخی یەکە',
-  totalPrice: 'کۆی نرخ',
+  totalPrice: 'کۆی گشتی',
 
   category: 'پۆل',
   startDate: 'بەرواری دەستپێک',
@@ -688,13 +688,13 @@ const ku: typeof en = {
 
   submit: 'ناردن',
   reset: 'نوێکردنەوە',
-  clearFilters: 'سڕینەوەی پاڵاوتنەکان',
+  clearFilters: 'سڕینەوەی فلتەر',
 
   selectOption: 'هەڵبژاردنێک هەڵبژێرە...',
 
   today: 'ئەمڕۆ',
   thisMonth: 'ئەم مانگە',
-  allTime: 'هەموو کات',
+  allTime: 'هەمووکات',
 
   dateFrom: 'لە بەرواری',
   dateTo: 'تا بەرواری',
@@ -713,8 +713,8 @@ outstandingInstallments: "قیستە نەدراوەکان",
 profitPerProject: "قازانج بۆ هەر پرۆژەیەک",
 expenseBreakdown: "دابەشبوونی خەرجییەکان",
 cashVsInstallment: "نەقد بەرامبەر قیست",
-salesPerEmployee: "فرۆشتن بۆ هەر کارمەندێک",
-lockSummary: "پوختەی سندوقی پارە",
+salesPerEmployee: "فرۆشتن  بەپێی کارمەند",
+lockSummary: "پوختەی  قاسە",
 installmentAging: "ڕاپۆرتی دواکەوتنی قیستەکان",
 
 openSession: "کردنەوەی کاتی کار",
@@ -723,11 +723,11 @@ openingBalance: "باڵانسی سەرەتایی",
 closingBalance: "باڵانسی کۆتایی",
 income: "هاتوو",
 expensesLabel: "خەرجییەکان",
-netBalance: "باڵانسی خاوێن",
+netBalance: "باڵانسی صافی",
 
 material: "کەرەستە",
 color: "ڕەنگ",
-measurement: "پێوانە",
+measurement: "قیاس",
 
 reverse: "گەڕاندنەوە",
 reverseReason: "هۆکاری گەڕاندنەوە",
@@ -773,7 +773,7 @@ openedBy: "کراوەتەوە لەلایەن",
 closedBy: "داخراوە لەلایەن",
 
 transactions: "مامەڵەکان",
-transactionType: "جۆر",
+transactionType: "جۆری مامەڵە",
 reference: "ئاماژە",
 daysOverdue: "ڕۆژانی دواکەوتن",
 
@@ -802,7 +802,7 @@ userProfile: "پرۆفایلی بەکارهێنەر",
 totalOrders: "کۆی داواکارییەکان",
 activeOrders: "داواکارییە چالاکەکان",
 totalRevenue: "کۆی داهات",
-pendingInstallments: "قیستە چاوەڕوانەکان",
+pendingInstallments: "قیستە چاوەڕوانکراوەکان",
 overdueInstallments: "قیستە دواکەوتووەکان",
 recentOrders: "داواکارییە نوێیەکان",
 quickStats: "ئاماری خێرا",
@@ -815,15 +815,15 @@ searchOrders: "گەڕان بەدوای داواکارییەکان...",
 searchCustomers: "گەڕان بەدوای کڕیارەکان...",
 searchPayments: "گەڕان بەدوای پارەدانەکان...",
 
-filterByStatus: "پاڵاوتن بەپێی دۆخ",
-filterByType: "پاڵاوتن بەپێی جۆر",
-filterByDate: "پاڵاوتن بەپێی بەروار",
+filterByStatus: "فلتەر بەپێی دۆخ",
+filterByType: "فلتەر بەپێی جۆر",
+filterByDate: "فلتەر بەپێی بەروار",
 
 allStatuses: "هەموو دۆخەکان",
 allTypes: "هەموو جۆرەکان",
 
 totalDue: "کۆی ماوەی پارەدان",
-totalPaidStat: "کۆی پارەدراو",
+totalPaidStat: "کۆی پارەی دراو",
 overdueInstallmentsCount: "قیست",
 
 searchInstallments: "گەڕان بەدوای داواکاری، کڕیار، بەروار...",
@@ -888,7 +888,7 @@ enterReversalReason: "هۆکاری گەڕاندنەوە بنووسە...",
 
 paymentHistoryTitle: "مێژووی پارەدانەکان",
 contractValueLabel: "بەهای گرێبەست",
-totalPaidLabel: "کۆی پارەدراو",
+totalPaidLabel: "کۆی پارەی دراو",
 balanceDueStat: "ماوەی پارەدان",
 
 paymentProgress: "پێشکەوتنی پارەدان",
@@ -1038,10 +1038,10 @@ selectReport: "ڕاپۆرتێک هەڵبژێرە",
 dailyRevenueDesc: "کۆی داهاتی ڕۆژێکی دیاریکراو",
 monthlyRevenueDesc: "داهات بەپێی مانگ",
 outstandingInstallmentsDesc: "هەموو قیستە نەدراوەکان",
-profitPerProjectDesc: "قازانج بۆ هەر گرێبەست",
+profitPerProjectDesc: "قازانج بۆ هەر گرێبەستێک ",
 expenseBreakdownDesc: "خەرجی بەپێی پۆل",
 cashVsInstallmentDesc: "بەراوردی نەقد و قیست",
-salesPerEmployeeDesc: "داهات بۆ هەر کارمەند",
+salesPerEmployeeDesc: "داهات بەپێی هەر کارمەندێک ",
 lockSummaryDesc: "پوختەی سندوقی پارە",
 installmentAgingDesc: "دواکەوتنی قیستەکان",
 

@@ -19,32 +19,34 @@ const BASE_NOTES = [
 ];
 
 const KITCHEN_BEDROOM_FIELDS: { key: keyof KitchenBedroomConfig; label: string }[] = [
-  { key: 'upper_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی سەرووی' },
-  { key: 'lower_cabinet_door_color_ku', label: 'ڕەنگی دەرگای کابینەتی خوارووی' },
-  { key: 'cabinet_body_color_ku', label: 'ڕەنگی جەستەی کابینەت' },
+  { key: 'upper_cabinet_door_color_ku', label: 'ڕەنگی دەرگای سەرەوە' },
+  { key: 'lower_cabinet_door_color_ku', label: 'ڕەنگی دەرگای  خوارووی' },
+  { key: 'cabinet_body_color_ku', label: 'ڕەنگی هەیکەل ' },
   { key: 'naxsh_ku', label: 'نەخش' },
-  { key: 'crown_ku', label: 'کراون' },
+  { key: 'crown_ku', label: 'تاج' },
   { key: 'kiler_ku', label: 'کیلەر' },
-  { key: 'cabinet_top_ku', label: 'سەری کابینەت' },
-  { key: 'stove_ku', label: 'تەختەی خواردنپێژ' },
-  { key: 'countertop_ku', label: 'کاونتەرتۆپ' },
-  { key: 'liner_led_ku', label: 'لاینەر LED' },
-  { key: 'suction_device_ku', label: 'دەزگای مێژووی' },
+  { key: 'cabinet_top_ku', label: 'سەر کەوانتەر(بەرد) ' },
+  { key: 'stove_ku', label: 'تەباخ ' },
+  { key: 'countertop_ku', label: 'سەقفی کەوانتەر' },
+  { key: 'liner_led_ku', label: 'لید LED' },
+  { key: 'suction_device_ku', label: 'مورەشەح ' },
   { key: 'microwave_ku', label: 'مایکرۆوێڤ' },
-  { key: 'mujameda_ku', label: 'موجەمەدە' },
-  { key: 'handle_type_ku', label: 'جۆری دەستگیرە' },
-  { key: 'oven_ku', label: 'فوورن' },
+  { key: 'mujameda_ku', label: 'موجەمیدە' },
+  { key: 'handle_type_ku', label: 'جۆری دەسک' },
+  { key: 'oven_ku', label: 'فڕن' },
   { key: 'fridge_ku', label: 'فریج' },
-  { key: 'washer_ku', label: 'مەکینەی مەسک' },
-  { key: 'baza_ku', label: 'بازا' },
+  { key: 'washer_ku', label: 'جلشۆر ' },
+  { key: 'baza_ku', label: 'بازە' },
   { key: 'glass_color_ku', label: 'ڕەنگی شووشە' },
 ];
 
 const CONSOLE_FIELDS: { key: keyof ConsoleConfig; label: string }[] = [
-  { key: 'measurement_ku', label: 'پێوانە' },
+  { key: 'measurement_ku', label: 'قیاس' },
   { key: 'color_ku', label: 'ڕەنگ' },
   { key: 'material', label: 'مادە' },
 ];
+
+
 
 function fmtDate(d?: string) {
   if (!d) return '—';
