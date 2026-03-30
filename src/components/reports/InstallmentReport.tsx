@@ -22,7 +22,12 @@ interface InstallmentData {
 type SortField = 'due_date' | 'installment_number' | 'order_number' | 'customer_name' | 'amount_usd' | 'paid_amount_usd' | 'status';
 type SortOrder = 'asc' | 'desc';
 type StatusFilter = 'all' | 'paid' | 'unpaid' | 'overdue' | 'partial';
+const todayISO = () => new Date().toISOString().split("T")[0];
 
+const getEffectiveStatus = (status: string, dueDate: string): string => {
+  const today = todayISO();
+  return status === "unpaid" && dueDate < today ? "overdue" : status;
+};
 export function InstallmentReport() {
   const { language } = useLanguage();
   const [installments, setInstallments] = useState<InstallmentData[]>([]);
@@ -96,15 +101,23 @@ export function InstallmentReport() {
   };
 
   const calculateSummary = (data: InstallmentData[]) => {
-    const totals = data.reduce((acc, i) => ({
-      total_due: acc.total_due + Number(i.amount_usd || 0),
-      total_paid: acc.total_paid + Number(i.paid_amount_usd || 0),
-      total_pending: acc.total_pending + (Number(i.amount_usd || 0) - Number(i.paid_amount_usd || 0)),
-      overdue_count: acc.overdue_count + (i.status === 'overdue' ? 1 : 0),
-      paid_count: acc.paid_count + (i.status === 'paid' ? 1 : 0),
-      unpaid_count: acc.unpaid_count + (i.status === 'unpaid' ? 1 : 0),
-      partial_count: acc.partial_count + (i.status === 'partial' ? 1 : 0),
-    }), {
+  const totals = data.reduce(
+    (acc, i) => {
+      const effectiveStatus = getEffectiveStatus(i.status, i.due_date);
+
+      return {
+        total_due: acc.total_due + Number(i.amount_usd || 0),
+        total_paid: acc.total_paid + Number(i.paid_amount_usd || 0),
+        total_pending:
+          acc.total_pending +
+          (Number(i.amount_usd || 0) - Number(i.paid_amount_usd || 0)),
+        overdue_count: acc.overdue_count + (effectiveStatus === "overdue" ? 1 : 0),
+        paid_count: acc.paid_count + (effectiveStatus === "paid" ? 1 : 0),
+        unpaid_count: acc.unpaid_count + (effectiveStatus === "unpaid" ? 1 : 0),
+        partial_count: acc.partial_count + (effectiveStatus === "partial" ? 1 : 0),
+      };
+    },
+    {
       total_due: 0,
       total_paid: 0,
       total_pending: 0,
@@ -112,23 +125,26 @@ export function InstallmentReport() {
       paid_count: 0,
       unpaid_count: 0,
       partial_count: 0,
-    });
+    }
+  );
 
-    setSummary(totals);
-  };
+  setSummary(totals);
+};
 
   // Apply filters
   useEffect(() => {
-    let filtered = [...installments];
+  let filtered = [...installments];
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(i => i.status === statusFilter);
-    }
+  if (statusFilter !== "all") {
+    filtered = filtered.filter((i) => {
+      const effectiveStatus = getEffectiveStatus(i.status, i.due_date);
+      return effectiveStatus === statusFilter;
+    });
+  }
 
-    setFilteredInstallments(filtered);
-    calculateSummary(filtered);
-  }, [installments, statusFilter]);
+  setFilteredInstallments(filtered);
+  calculateSummary(filtered);
+}, [installments, statusFilter]);
 
   // Sort installments
   const sortedInstallments = [...filteredInstallments].sort((a, b) => {
@@ -156,8 +172,10 @@ export function InstallmentReport() {
         compareValue = Number(a.paid_amount_usd) - Number(b.paid_amount_usd);
         break;
       case 'status':
-        compareValue = a.status.localeCompare(b.status);
-        break;
+  compareValue = getEffectiveStatus(a.status, a.due_date).localeCompare(
+    getEffectiveStatus(b.status, b.due_date)
+  );
+  break;
     }
 
     return sortOrder === 'asc' ? compareValue : -compareValue;
@@ -173,26 +191,48 @@ export function InstallmentReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Order', 'Customer', 'Installment #', 'Due Date', 'Amount', 'Paid', 'Status'];
-    const rows = sortedInstallments.map(i => [
-      i.order_number,
-      language === 'ku' ? i.customer_name_ku : i.customer_name_en,
-      i.installment_number,
-      i.due_date,
-      i.amount_usd,
-      i.paid_amount_usd,
-      i.status,
-    ]);
+  const headers = [
+    'داواکاری',
+    'کڕیار',
+    'قیست #',
+    'بەرواری دانەوە',
+    'بڕ',
+    'پارەیدراو',
+    'دۆخ',
+  ];
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `installment_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const rows = sortedInstallments.map((i) => [
+    i.order_number,
+    language === 'ku' ? i.customer_name_ku : i.customer_name_en,
+    i.installment_number,
+    i.due_date,
+    i.amount_usd,
+    i.paid_amount_usd,
+    i.status,
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `installment_report_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   useEffect(() => {
     fetchInstallments();
@@ -423,13 +463,25 @@ export function InstallmentReport() {
                         {fmt(installment.paid_amount_usd)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant={
-                          installment.status === 'paid' ? 'success' :
-                          installment.status === 'overdue' ? 'error' :
-                          installment.status === 'partial' ? 'warning' : 'neutral'
-                        }>
-                          {installment.status}
-                        </Badge>
+                        {(() => {
+  const effectiveStatus = getEffectiveStatus(installment.status, installment.due_date);
+
+  return (
+    <Badge
+      variant={
+        effectiveStatus === "paid"
+          ? "success"
+          : effectiveStatus === "overdue"
+          ? "error"
+          : effectiveStatus === "partial"
+          ? "warning"
+          : "neutral"
+      }
+    >
+      {effectiveStatus}
+    </Badge>
+  );
+})()}
                       </td>
                     </tr>
                   ))}

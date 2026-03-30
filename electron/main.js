@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, Menu } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
@@ -32,8 +32,6 @@ function waitForBackend(port, retries = 30) {
 function startBackend() {
   const isPackaged = app.isPackaged;
 
-  // When packaged: resources/backend/dist/index.js
-  // When dev: ../server/dist/index.js
   const backendPath = isPackaged
     ? path.join(process.resourcesPath, 'backend', 'dist', 'index.js')
     : path.join(__dirname, '..', 'server', 'dist', 'index.js');
@@ -72,6 +70,9 @@ function startBackend() {
 }
 
 async function createWindow() {
+  // Remove default menu bar
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -82,14 +83,15 @@ async function createWindow() {
       contextIsolation: true,
     },
     icon: process.platform === 'win32'
-        ? path.join(__dirname, 'logo.ico')
-        : process.platform === 'darwin'
-            ? path.join(__dirname, 'icon.icns')
-            : path.join(__dirname, 'logo.png'),
+      ? path.join(__dirname, 'logo.ico')
+      : process.platform === 'darwin'
+        ? path.join(__dirname, 'icon.icns')
+        : path.join(__dirname, 'logo.png'),
     title: 'Alvic Home',
     show: false,
   });
 
+  mainWindow.setMenu(null);
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
   mainWindow.show();
 

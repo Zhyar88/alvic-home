@@ -111,24 +111,44 @@ export function CustomerReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Customer', 'Orders', 'Revenue', 'Profit', 'Avg Profit/Order'];
-    const rows = customers.map(c => [
-      language === 'ku' ? c.full_name_ku : c.full_name_en,
-      c.total_orders,
-      c.lifetime_revenue,
-      c.lifetime_profit,
-      c.avg_profit_per_order,
-    ]);
+  const headers = [
+    'کڕیار',
+    'داواکاریەکان',
+    'داهات',
+    'قازانج',
+    'ڕێژەی قازانج/داواکاری',
+  ];
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `customer_analysis_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const rows = customers.map((c) => [
+    language === 'ku' ? c.full_name_ku : c.full_name_en,
+    c.total_orders,
+    c.lifetime_revenue,
+    c.lifetime_profit,
+    c.avg_profit_per_order,
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `customer_analysis_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   const summary = customers.reduce((acc, c) => ({
     total_customers: acc.total_customers + 1,
@@ -268,7 +288,7 @@ export function CustomerReport() {
                       onClick={() => toggleSort('avg_profit_per_order')}
                     >
                       <div className="flex items-center justify-end gap-1">
-                        {language === 'ku' ? 'میانگین/داواکاری' : 'Avg/Order'}
+                        {language === 'ku' ? 'ڕێژەی قازانج/داواکاری' : 'Avg/Order'}
                         <ArrowUpDown size={12} />
                       </div>
                     </th>

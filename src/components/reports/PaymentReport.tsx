@@ -259,27 +259,50 @@ export function PaymentReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Payment #', 'Date', 'Order #', 'Customer', 'Type', 'Currency', 'Amount', 'Amount USD'];
-    const rows = sortedPayments.map(p => [
-      p.payment_number,
-      p.payment_date,
-      p.order_number,
-      language === 'ku' ? p.customer_name_ku : p.customer_name_en,
-      p.payment_type,
-      p.currency,
-      p.amount_in_currency,
-      p.amount_usd,
-    ]);
+  const headers = [
+    'ژمارە #',
+    'بەروار',
+    'داواکاری #',
+    'کڕیار',
+    'جۆر',
+    'دراو',
+    'بڕ',
+    'بڕ بە دۆلار',
+  ];
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payment_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const rows = sortedPayments.map((p) => [
+    p.payment_number,
+    p.payment_date,
+    p.order_number,
+    language === 'ku' ? p.customer_name_ku : p.customer_name_en,
+    p.payment_type,
+    p.currency,
+    p.amount_in_currency,
+    p.amount_usd,
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payment_report_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   const resetFilters = () => {
     setPaymentTypeFilter('all');

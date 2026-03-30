@@ -335,29 +335,54 @@ dataByPeriod.forEach(data => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Period', 'Orders', 'Total Revenue', 'Cash Collected', 'Cost', 'Total Profit', 'Cash Profit', 'Expenses', 'Net Profit', 'Cash Net Profit'];
-    const rows = reports.map(r => [
-      formatPeriod(r.period),
-      r.total_orders,
-      r.total_revenue.toFixed(2),
-      r.cash_collected.toFixed(2),
-      r.total_cost.toFixed(2),
-      r.gross_profit.toFixed(2),
-      r.cash_profit.toFixed(2),
-      r.total_expenses.toFixed(2),
-      r.net_profit.toFixed(2),
-      r.cash_net_profit.toFixed(2),
-    ]);
+  const headers = [
+    'بەروار',
+    'داواکاریەکان',
+    'کۆی داهات',
+    'پارەی کۆکراوە',
+    'تێچوو',
+    'قازانجی گشتی',
+    'قازانجی پارەیی',
+    'خەرجیەکان',
+    'قازانجی دواییە',
+    'قازانجی پارەیی دواییە',
+  ];
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `profit_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const rows = reports.map((r) => [
+    formatPeriod(r.period),
+    r.total_orders,
+    r.total_revenue.toFixed(2),
+    r.cash_collected.toFixed(2),
+    r.total_cost.toFixed(2),
+    r.gross_profit.toFixed(2),
+    r.cash_profit.toFixed(2),
+    r.total_expenses.toFixed(2),
+    r.net_profit.toFixed(2),
+    r.cash_net_profit.toFixed(2),
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `profit_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {

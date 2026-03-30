@@ -223,23 +223,51 @@ export function SalesReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Order Number', 'Date', 'Customer', 'Type', 'Status', 'Total', 'Paid', 'Balance'];
-    const rows = sales.map(s => [
-      s.order_number,
-      new Date(s.created_at).toLocaleDateString('en-GB'),
-      language === 'ku' ? s.customer_name_ku : s.customer_name_en,
-      s.sale_type, s.status,
-      s.final_total_usd, s.total_paid_usd, s.balance_due_usd,
-    ]);
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const headers = [
+    'ژمارەی داواکاری',
+    'بەروار',
+    'کڕیار',
+    'جۆر',
+    'دۆخ',
+    'کۆی داهات',
+    'پارەی پارەیدراو',
+    'بڕی دانەوە',
+  ];
+
+  const rows = sales.map((s) => [
+    s.order_number,
+    new Date(s.created_at).toLocaleDateString('en-GB'),
+    language === 'ku' ? s.customer_name_ku : s.customer_name_en,
+    s.sale_type,
+    s.status,
+    s.final_total_usd,
+    s.total_paid_usd,
+    s.balance_due_usd,
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  // Add UTF-8 BOM so Excel reads Kurdish correctly
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');

@@ -218,26 +218,48 @@ export function ExpensesReport() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Expense #', 'Date', 'Category', 'Description', 'Currency', 'Amount', 'Amount USD'];
-    const rows = sortedExpenses.map(e => [
-      e.expense_number,
-      e.expense_date,
-      language === 'ku' ? e.category_name_ku : e.category_name_en,
-      language === 'ku' ? e.description_ku : e.description_en,
-      e.currency,
-      e.amount_in_currency,
-      e.amount_usd,
-    ]);
+  const headers = [
+    'خەرجی #',
+    'بەروار',
+    'جۆر',
+    'وەسف',
+    'دراو',
+    'بڕ',
+    'بڕ بە دۆلار',
+  ];
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `expenses_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const rows = sortedExpenses.map((e) => [
+    e.expense_number,
+    e.expense_date,
+    language === 'ku' ? e.category_name_ku : e.category_name_en,
+    language === 'ku' ? e.description_ku : e.description_en,
+    e.currency,
+    e.amount_in_currency,
+    e.amount_usd,
+  ]);
+
+  const escapeCSV = (value: unknown) => {
+    const str = String(value ?? '');
+    return `"${str.replace(/"/g, '""')}"`;
   };
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map(escapeCSV).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `expenses_report_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   const resetFilters = () => {
     setCategoryFilter('all');
