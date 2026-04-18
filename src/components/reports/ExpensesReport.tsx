@@ -133,38 +133,39 @@ export function ExpensesReport() {
   };
 
   const calculateSummary = (data: ExpenseData[]) => {
-    const totals = data.reduce((acc, e) => ({
-      total_expenses: acc.total_expenses + 1,
-      total_usd: acc.total_usd + (e.currency === 'USD' ? Number(e.amount_in_currency || 0) : 0),
-      total_iqd: acc.total_iqd + (e.currency === 'IQD' ? Number(e.amount_in_currency || 0) : 0),
-    }), {
-      total_expenses: 0,
-      total_usd: 0,
-      total_iqd: 0,
-    });
+  const totals = data.reduce((acc, e) => ({
+    total_expenses: acc.total_expenses + 1,
+    total_usd: acc.total_usd + Number(e.amount_usd || 0),
+    total_iqd: acc.total_iqd + (e.currency === 'IQD' ? Number(e.amount_in_currency || 0) : 0),
+  }), {
+    total_expenses: 0,
+    total_usd: 0,
+    total_iqd: 0,
+  });
 
-    // Calculate by category
-    const categoryMap = new Map<string, CategorySummary>();
-    data.forEach(expense => {
-      const key = expense.category_id || 'uncategorized';
-      const existing = categoryMap.get(key);
-      if (existing) {
-        existing.total += Number(expense.amount_usd || 0);
-        existing.count += 1;
-      } else {
-        categoryMap.set(key, {
-          category_name_en: expense.category_name_en,
-          category_name_ku: expense.category_name_ku,
-          total: Number(expense.amount_usd || 0),
-          count: 1,
-        });
-      }
-    });
+  const categoryMap = new Map<string, CategorySummary>();
 
-    const by_category = Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
+  data.forEach(expense => {
+    const key = expense.category_id || 'uncategorized';
+    const existing = categoryMap.get(key);
 
-    setSummary({ ...totals, by_category });
-  };
+    if (existing) {
+      existing.total += Number(expense.amount_usd || 0);
+      existing.count += 1;
+    } else {
+      categoryMap.set(key, {
+        category_name_en: expense.category_name_en,
+        category_name_ku: expense.category_name_ku,
+        total: Number(expense.amount_usd || 0),
+        count: 1,
+      });
+    }
+  });
+
+  const by_category = Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
+
+  setSummary({ ...totals, by_category });
+};
 
   // Apply filters
   useEffect(() => {
@@ -325,7 +326,9 @@ export function ExpensesReport() {
                   {language === 'ku' ? 'کۆی خەرجی' : 'Total Expenses'}
                 </p>
               </div>
-              <p className="text-2xl font-bold text-red-900">{fmt(summary.total_usd + (summary.total_iqd / 1330), 'USD')}</p>
+              <p className="text-2xl font-bold text-red-900">
+  {fmt(summary.total_usd, 'USD')}
+</p>
               <p className="text-xs text-red-600 mt-1">{summary.total_expenses} {language === 'ku' ? 'خەرجی' : 'expenses'}</p>
             </div>
 

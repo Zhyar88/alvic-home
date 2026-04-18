@@ -217,7 +217,9 @@ export function Expenses() {
   const canDelete = hasPermission('expenses', 'delete');
 
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`;
-  const totalAmount = expenses.reduce((s, e) => s + e.amount_usd, 0);
+  const totalAmount = expenses.reduce((sum, e) => {
+  return sum + Number(e.amount_usd || 0);
+}, 0);
   const fmtDate = (dateStr: string) => {
     // If it's just a date string "2026-03-11", use it directly
     // If it's a full ISO string, extract the date in LOCAL time (not UTC)
