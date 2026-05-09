@@ -33,7 +33,11 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
-app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+const UPLOADS_ROOT = process.env.USER_DATA_PATH
+  ? join(process.env.USER_DATA_PATH, 'uploads')
+  : join(process.cwd(), 'uploads');
+
+app.use('/uploads', express.static(UPLOADS_ROOT));
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -6,10 +6,15 @@ import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
+// Use USER_DATA_PATH when set (Electron), fall back to cwd (dev/server)
+const UPLOADS_ROOT = process.env.USER_DATA_PATH
+  ? path.join(process.env.USER_DATA_PATH, 'uploads')
+  : path.join(process.cwd(), 'uploads');
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const customerId = req.params.customerId;
-    const dir = path.join(process.cwd(), 'uploads', 'customer-documents', customerId);
+    const dir = path.join(UPLOADS_ROOT, 'customer-documents', customerId);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -21,21 +26,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post('/:customerId', verifyToken, upload.single('file'), async (req: Request, res: Response) => {
+router.post('/:customerId', verifyToken, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { customerId } = req.params;
-    const filePath = `${customerId}/${req.file.filename}`;
+    const filePath = `${req.params.customerId}/${req.file.filename}`;
     res.json({ path: filePath, filename: req.file.filename });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-router.delete('/:customerId/:filename', verifyToken, async (req: Request, res: Response) => {
+router.delete('/:customerId/:filename', verifyToken, async (req, res) => {
   try {
     const { customerId, filename } = req.params;
-    const filePath = path.join(process.cwd(), 'uploads', 'customer-documents', customerId, filename);
+    const filePath = path.join(UPLOADS_ROOT, 'customer-documents', customerId, filename);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json({ success: true });
   } catch (error: any) {

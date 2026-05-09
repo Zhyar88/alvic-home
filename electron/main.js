@@ -31,6 +31,7 @@ function waitForBackend(port, retries = 30) {
 
 function startBackend() {
   const isPackaged = app.isPackaged;
+  const userDataPath = app.getPath('userData');  // ← add this
 
   const backendPath = isPackaged
     ? path.join(process.resourcesPath, 'backend', 'dist', 'index.js')
@@ -40,15 +41,13 @@ function startBackend() {
     ? path.join(process.resourcesPath, 'backend', '.env')
     : path.join(__dirname, '..', 'server', '.env');
 
-  console.log('Backend path:', backendPath);
-  console.log('Env path:', envPath);
-
   backendProcess = spawn('node', [backendPath], {
     env: {
       ...process.env,
       NODE_ENV: 'production',
       PORT: '3000',
       DOTENV_CONFIG_PATH: envPath,
+      USER_DATA_PATH: userDataPath,  // ← add this
     },
     cwd: isPackaged
       ? path.join(process.resourcesPath, 'backend')
