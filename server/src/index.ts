@@ -3,7 +3,8 @@ import './env.js';
 import express from 'express';
 import cors from 'cors';
 import { join } from 'path';
-import path from "path";
+import { existsSync } from 'fs';
+
 // Import routes (these will now have env variables available)
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
@@ -33,11 +34,13 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
 const UPLOADS_ROOT = process.env.USER_DATA_PATH
   ? join(process.env.USER_DATA_PATH, 'uploads')
   : join(process.cwd(), 'uploads');
 
 app.use('/uploads', express.static(UPLOADS_ROOT));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -58,6 +61,21 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/db', databaseRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/backup', backupRouter);
+
+// ✅ Frontend static serving — MUST be BEFORE error handler and 404 handler
+const frontendDist = join(process.cwd(), 'frontend-dist');
+console.log('CWD:', process.cwd());
+console.log('Frontend dist path:', frontendDist);
+console.log('Frontend dist exists:', existsSync(frontendDist));
+
+if (existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(join(frontendDist, 'index.html'));
+  });
+}
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -67,31 +85,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// 404 handler
+// 404 handler — only reached if no frontend and no API route matched
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-import { existsSync } from 'fs';
-const frontendDist = join(process.cwd(), 'frontend-dist');
-if (existsSync(frontendDist)) {
-  app.use(express.static(frontendDist));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
-    res.sendFile(join(frontendDist, 'index.html'));
-  });
-}
-
-
-// local
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
   console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
 });
 
-// server
-// app.listen(3000, '0.0.0.0', () => {
-//   console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
-//   console.log(`📊 API endpoints available at http://0.0.0.0:${PORT}/api`);
-// });
 export default app;
